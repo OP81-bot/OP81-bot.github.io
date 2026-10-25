@@ -1,0 +1,2759 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="NQ 回測">
+<meta name="theme-color" content="#000000">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>NQ 回測</title>
+<style>
+  :root {
+    --bg: #000000; --panel: #131722; --panel2: #1e222d; --border: #2a2e39; --text: #d1d4dc; --muted: #787b86;
+    --accent: #2962ff; --up: #00b242; --down: #bdbcbc; --buy: #2962ff; --sell: #f23645; --win: #26a69a; --loss: #f23645;
+    --pw: 340px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); overflow: hidden;
+    font: 13px -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft JhengHei", sans-serif; }
+  #top { height: 42px; display: flex; align-items: center; gap: 4px; padding: 0 8px;
+    border-bottom: 1px solid var(--border); background: var(--bg); overflow-x: auto; white-space: nowrap; }
+  .sym { font-weight: 700; font-size: 15px; padding: 0 6px 0 4px; }
+  .sep { width: 1px; height: 22px; background: var(--border); margin: 0 6px; flex: none; }
+  button, select, input, textarea { font: inherit; color: var(--text); background: transparent; border: 0;
+    border-radius: 4px; padding: 5px 8px; cursor: pointer; }
+  button:hover { background: var(--panel2); }
+  button.on { color: #fff; background: var(--accent); }
+  button:disabled { opacity: .4; cursor: default; }
+  input[type=datetime-local], input[type=time] { background: var(--panel2); border: 1px solid var(--border); color-scheme: dark; cursor: text; }
+  #sesbtn { border: 1px solid var(--border); max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
+  #wrap { position: absolute; top: 42px; left: 44px; right: var(--pw); bottom: 0; }
+  #side { position: absolute; top: 42px; left: 0; bottom: 0; width: 44px; border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; align-items: center; gap: 4px; padding-top: 6px; background: var(--bg); }
+  #side button { width: 34px; height: 34px; padding: 0; display: grid; place-items: center; color: var(--text); }
+  #side button.on { background: var(--panel2); color: var(--accent); }
+  #side svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; }
+  #side .gap { height: 1px; width: 26px; background: var(--border); margin: 4px 0; }
+  #wrap.drawing #chart { cursor: crosshair; }
+  #wrap.grab #chart { cursor: move; }
+  #wrap.resize #chart { cursor: nwse-resize; }
+  #wrap.ns #chart { cursor: ns-resize; }
+  #wrap.ew #chart { cursor: ew-resize; }
+  #wrap.ptr #chart { cursor: pointer; }
+  #props { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); z-index: 6; display: none;
+    align-items: center; gap: 4px; padding: 4px 6px; background: var(--panel2); border: 1px solid var(--border);
+    border-radius: 6px; box-shadow: 0 4px 16px rgba(0,0,0,.5); }
+  #props input[type=color] { width: 28px; height: 24px; padding: 0; border: 1px solid var(--border); background: none; }
+  #props select { background: var(--bg); border: 1px solid var(--border); padding: 3px 4px; }
+  #props .lbl { color: var(--muted); font-size: 12px; padding: 0 4px; }
+  #chart { position: absolute; inset: 0; }
+  #legend { position: absolute; top: 8px; left: 12px; z-index: 3; pointer-events: none; line-height: 1.7; }
+  #legend .t { font-size: 14px; }
+  #legend b { font-weight: 500; }
+  #legend .ind { width: max-content; display: flex; align-items: center; gap: 6px; pointer-events: auto; color: var(--muted); }
+  #legend .ind button { padding: 0 4px; color: var(--muted); }
+  #legend .ind button:hover { color: var(--text); }
+  .u { color: var(--up); } .d { color: var(--down); } .m { color: var(--muted); }
+  .pos { color: var(--win); } .neg { color: var(--loss); }
+  #status { position: absolute; top: 8px; right: 80px; z-index: 3; color: var(--muted); font-size: 12px; pointer-events: none; }
+  #wm { position: absolute; z-index: 3; text-align: center; pointer-events: none; line-height: 1.35; }
+  #tfbox { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; z-index: 5; pointer-events: none; }
+  #tfbox div { background: var(--panel2); border: 1px solid var(--border); padding: 14px 22px; border-radius: 6px; font-size: 22px; }
+  #empty { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; z-index: 4; flex-direction: column; gap: 12px; color: var(--muted); }
+  #empty button { background: var(--accent); color: #fff; padding: 8px 18px; }
+
+  /* 重播控制列 */
+  #rbar { position: absolute; left: 50%; bottom: 44px; transform: translateX(-50%); z-index: 6; display: flex; align-items: center; gap: 2px;
+    background: var(--panel2); border: 1px solid var(--border); border-radius: 8px; padding: 4px 6px; box-shadow: 0 6px 24px rgba(0,0,0,.6); white-space: nowrap; }
+  #rbar button { padding: 5px 8px; }
+  #rbar .big { font-size: 15px; width: 34px; }
+  #rbar select { background: var(--bg); border: 1px solid var(--border); padding: 3px 4px; }
+  #rbar .clock { padding: 0 8px; font-variant-numeric: tabular-nums; }
+  #rbar input[type=datetime-local] { padding: 3px 4px; width: 172px; }
+  #toast { position: absolute; top: 56px; left: 50%; transform: translateX(-50%); z-index: 7; display: flex; flex-direction: column; gap: 6px; align-items: center; pointer-events: none; }
+  #toast div { background: var(--panel2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 14px; box-shadow: 0 4px 16px rgba(0,0,0,.5); font-size: 14px; }
+
+  /* 右側面板 */
+  #panel { position: absolute; top: 42px; right: 0; bottom: 0; width: var(--pw); border-left: 1px solid var(--border); background: var(--panel);
+    display: flex; flex-direction: column; }
+  #tabs { display: flex; border-bottom: 1px solid var(--border); }
+  #tabs button { flex: 1; border-radius: 0; padding: 10px 0; color: var(--muted); border-bottom: 2px solid transparent; }
+  #tabs button.on { background: none; color: var(--text); border-bottom-color: var(--accent); }
+  .tab { flex: 1; overflow-y: auto; padding: 12px 14px; display: none; }
+  .tab.on { display: block; }
+  .card { background: var(--panel2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; }
+  .card h5 { margin: 0 0 8px; font-size: 12px; color: var(--muted); font-weight: 600; display: flex; align-items: center; }
+  .card h5 span { margin-left: auto; font-weight: 400; }
+  .fr { display: flex; align-items: center; gap: 8px; margin: 7px 0; }
+  .fr > label:first-child { flex: 1; color: var(--muted); display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .fr input[type=number], .fr input[type=text], .fr select { background: var(--bg); border: 1px solid var(--border); padding: 4px 6px; width: 100px; cursor: text; }
+  .fr select { cursor: pointer; width: auto; }
+  input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--accent); margin: 0; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 5px; overflow: hidden; }
+  .seg button { border-radius: 0; padding: 4px 10px; }
+  .bs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .bs button { padding: 9px 4px; font-weight: 600; color: #fff; line-height: 1.25; }
+  .bs button small { display: block; font-weight: 400; opacity: .85; font-variant-numeric: tabular-nums; }
+  #buy { background: var(--buy); } #sell { background: var(--sell); }
+  #buy:hover { background: #1e53e5; } #sell:hover { background: #d42a39; }
+  .px { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; font-variant-numeric: tabular-nums; }
+  .kv span:nth-child(odd) { color: var(--muted); }
+  .kv span:nth-child(even) { text-align: right; }
+  .row2 { display: flex; gap: 6px; margin-top: 10px; }
+  .row2 button { flex: 1; background: var(--bg); border: 1px solid var(--border); }
+  .hint { color: var(--muted); font-size: 11px; line-height: 1.5; }
+  #savest { padding: 6px 14px; border-top: 1px solid var(--border); color: var(--muted); font-size: 11px; display: flex; gap: 8px; }
+
+  /* 統計 */
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .tile { background: var(--panel2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+  .tile .k { color: var(--muted); font-size: 11px; }
+  .tile .v { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .tile .s { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  #eq { width: 100%; height: 150px; display: block; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th { color: var(--muted); font-weight: 500; font-size: 11px; text-align: right; padding: 4px 3px; border-bottom: 1px solid var(--border); position: sticky; top: -12px; background: var(--panel); }
+  td { text-align: right; padding: 5px 3px; border-bottom: 1px solid #1c2030; font-size: 12px; }
+  th:nth-child(-n+3), td:nth-child(-n+3) { text-align: left; }
+  tr.tr { cursor: pointer; }
+  tr.tr:hover td { background: var(--panel2); }
+  tr.sel td { background: #1c2a4a; }
+  tr.det td { background: var(--panel2); text-align: left; padding: 8px; }
+  tr.det textarea { width: 100%; min-height: 54px; background: var(--bg); border: 1px solid var(--border); cursor: text; resize: vertical; }
+  .tag { display: inline-block; padding: 0 5px; border-radius: 3px; font-size: 11px; }
+  .tag.l { background: rgba(41,98,255,.2); color: #82a5ff; } .tag.s { background: rgba(242,54,69,.2); color: #ff8a93; }
+  .tbar { display: flex; gap: 6px; margin-bottom: 10px; align-items: center; }
+  .tbar button { background: var(--panel2); border: 1px solid var(--border); }
+
+  /* 對話框 */
+  #mask { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: none; z-index: 10; }
+  .dlg { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); width: min(440px, calc(100vw - 32px));
+    max-height: calc(100vh - 40px); overflow: auto; background: var(--panel2); border: 1px solid var(--border);
+    border-radius: 8px; box-shadow: 0 10px 40px rgba(0,0,0,.5); display: none; z-index: 11; }
+  #sesdlg { width: min(720px, calc(100vw - 32px)); }
+  .dlg header { display: flex; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border); font-size: 16px; }
+  .dlg header button { margin-left: auto; font-size: 18px; }
+  .dlg .body { padding: 6px 18px 14px; }
+  .dlg h4 { margin: 16px 0 8px; font-size: 12px; color: var(--muted); font-weight: 600; }
+  .dlg .row { display: flex; align-items: center; gap: 8px; margin: 7px 0; }
+  .dlg .row label { flex: 1; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .dlg input[type=text], .dlg input[type=number], .dlg select { background: var(--bg); border: 1px solid var(--border);
+    padding: 4px 6px; cursor: text; }
+  .dlg input[type=text] { width: 96px; }
+  .dlg input[type=number] { width: 72px; }
+  .dlg select { cursor: pointer; }
+  .dlg input[type=color] { width: 30px; height: 26px; padding: 0; border: 1px solid var(--border); background: none; cursor: pointer; }
+  .dlg input[type=checkbox] { width: 16px; height: 16px; }
+  .dlg input.bad { border-color: #f23645; }
+  .dlg footer { display: flex; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--border); }
+  .dlg footer .pri, .dlg .pri { margin-left: auto; background: #fff; color: #131722; padding: 6px 16px; }
+  .dlg .hint { margin: 2px 0 0 24px; }
+  .newgrid { display: grid; grid-template-columns: auto 1fr auto 1fr; gap: 8px 12px; align-items: center; }
+  .newgrid label { color: var(--muted); }
+  .newgrid input, .newgrid select { width: 100%; }
+  #seslist td, #seslist th { font-size: 12px; }
+  #seslist tr.cur td { background: #1c2a4a; }
+  #seslist button { padding: 3px 8px; background: var(--bg); border: 1px solid var(--border); }
+
+  :root { color-scheme: dark; }
+  #app { position: fixed; top: env(safe-area-inset-top, 0px); right: env(safe-area-inset-right, 0px);
+    bottom: env(safe-area-inset-bottom, 0px); left: env(safe-area-inset-left, 0px); overflow: hidden; background: var(--bg); }
+  #chart { touch-action: none; }
+  #ptoggle, #pclose, #tfsel, #ttoggle, #morebtn, #more, #mtrade { display: none; }
+  .dlg { max-height: calc(100% - 24px); overflow: auto; }
+  @media (max-width: 760px) {
+    :root { --pw: 0px; --tb: 46px; --rb: 46px; --mb: 54px; }
+    /* 上方列：☰ 回測名稱 週期 ✏️ KZ OB ⋯ */
+    #top { height: var(--tb); gap: 6px; padding: 0 6px; overflow: hidden; }
+    #top > .sym, #top > .m, #top > .sep, #tfs, #adjtxt { display: none !important; }
+    #ptoggle, #tfsel, #ttoggle, #morebtn { display: inline-block; flex: none; }
+    #ptoggle { border: 1px solid var(--border); padding: 6px 10px; }
+    #sesbtn { flex: 1 1 auto; min-width: 0; max-width: none; text-align: left; padding: 6px 8px; }
+    #tfsel { background: var(--panel2); border: 1px solid var(--border); padding: 5px 6px; font-weight: 600; }
+    #kzbtn, #obbtn { padding: 6px 7px; flex: none; }
+    #morebtn { font-size: 18px; padding: 2px 10px; }
+    #top button, #top select { min-height: 34px; }
+    /* 更多選單 */
+    #more { position: absolute; top: calc(var(--tb) + 4px); right: 6px; z-index: 12; background: var(--panel2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 10px; width: min(330px, calc(100% - 12px)); box-shadow: 0 10px 30px rgba(0,0,0,.6); }
+    #app.mopen #more { display: block; }
+    #moregrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    #moregrid input { grid-column: 1 / -1; width: 100%; background: var(--bg); border: 1px solid var(--border); padding: 7px; }
+    #moregrid select, #more button { border: 1px solid var(--border); padding: 8px; background: var(--bg); }
+    #moregrid #unit { grid-column: 1 / -1; }
+    #moregrid .cap { grid-column: 1 / -1; color: var(--muted); font-size: 12px; margin-top: 4px; }
+    #moregrid #ffbtn { grid-column: 1 / -1; }
+    #savest > :last-child { display: none; }
+    #more .mrow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+    /* 繪圖工具：✏️ 打開才出現，浮在圖上 */
+    #side { display: none; top: calc(var(--tb) + 6px); left: 6px; bottom: auto; width: 44px; border: 1px solid var(--border);
+      border-radius: 10px; padding: 6px 0; z-index: 9; background: var(--panel); box-shadow: 0 6px 20px rgba(0,0,0,.5); }
+    #app.topen #side { display: flex; }
+    #app.topen #ttoggle { background: var(--panel2); }
+    #side button { width: 36px; height: 36px; }
+    /* 圖表：上方列以下、下方兩列以上 */
+    #wrap { top: var(--tb); left: 0; right: 0; bottom: calc(var(--rb) + var(--mb)); }
+    #legend { top: 4px; left: 8px; line-height: 1.45; font-size: 11px; }
+    #legend .t { font-size: 12px; }
+    #kzleg, #obleg { display: none !important; }
+    #wm { display: none !important; }
+    #status { display: none; }
+    #props { flex-wrap: wrap; max-width: calc(100% - 16px); top: 4px; }
+    #toast { top: 40px; width: calc(100% - 24px); }
+    #toast div { font-size: 13px; text-align: center; }
+    /* 播放列 */
+    #rbar { position: absolute; left: 0; right: 0; bottom: var(--mb); top: auto; height: var(--rb); transform: none; border-radius: 0;
+      border: 0; border-top: 1px solid var(--border); background: var(--panel); padding: 0 6px; gap: 6px; overflow-x: auto;
+      justify-content: flex-start; max-width: none; box-shadow: none; }
+    #rbar > * { flex: none; }
+    #rbar .sep { display: none; }
+    #rbar .big { width: 40px; height: 36px; font-size: 17px; }
+    #rbar .clock { padding: 0 2px; font-size: 11px; max-width: 76px; white-space: normal; line-height: 1.2; text-align: center; }
+    #rbar #next18, #rbar #nextkz { border: 1px solid var(--border); padding: 6px 7px; }
+    #rbar #speed { padding: 4px 2px; }
+    /* 下單列 */
+    #mtrade { display: flex; position: absolute; left: 0; right: 0; bottom: 0; height: var(--mb); align-items: center; gap: 8px;
+      padding: 0 8px; background: var(--panel); border-top: 1px solid var(--border); z-index: 6; }
+    #mpos { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+    #mtrade button { flex: none; height: 40px; padding: 0 14px; font-weight: 600; color: #fff; }
+    #mbuy { background: var(--buy); } #msell { background: var(--sell); } #mclose { background: #3a3f4c; }
+    /* 下單面板：從下面滑上來 */
+    #panel { top: auto; left: 0; right: 0; width: auto; height: 62%; border-left: 0; border-top: 1px solid var(--border);
+      transform: translateY(102%); transition: transform .2s ease; z-index: 11; box-shadow: 0 -8px 24px rgba(0,0,0,.5); border-radius: 12px 12px 0 0; }
+    #app.popen #panel { transform: none; }
+    #pclose { display: block; flex: none; width: 48px; color: var(--muted); font-size: 16px; }
+    .dlg { width: calc(100% - 16px) !important; }
+    #seslist { font-size: 12px; }
+    #sesdlg .body { overflow-x: auto; }
+  }
+  @media (prefers-reduced-motion: reduce) { #panel { transition: none; } }
+
+  #dataov { position: fixed; inset: 0; z-index: 30; background: var(--bg); display: none; align-items: center; justify-content: center;
+    padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+  #dataov.on { display: flex; }
+  #dataov .card { max-width: 420px; width: 100%; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 22px; line-height: 1.6; }
+  #dataov .ttl { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+  #dataov ol { padding-left: 20px; margin: 8px 0 16px; }
+  #dataov .pri { width: 100%; padding: 12px; font-size: 16px; font-weight: 600; background: var(--accent); color: #fff; border-radius: 8px; }
+  #dov_msg { margin-top: 12px; min-height: 1.4em; }
+</style>
+</head>
+<body>
+<div id="app">
+<div id="top"><button id="ptoggle" title="下單／紀錄／統計">☰ 下單</button>
+  <span class="sym">NQ1!</span>
+  <span class="m" style="padding-right:4px">手動回測</span>
+  <button id="sesbtn" title="切換／新增回測">📁 —</button>
+  <span class="sep"></span>
+  <span id="tfs"></span><select id="tfsel" title="週期"></select>
+  <span class="sep"></span>
+  <input id="goto" type="datetime-local" title="看過去的 K 線（不會超過目前回測位置）">
+  <button id="gobtn" title="看過去的 K 線（不會超過目前回測位置）">看歷史</button>
+  <button id="latest" title="回到目前回測位置">⇥ 目前</button>
+  <span class="sep"></span>
+  <button id="magnet" title="十字線吸附到 K 棒">吸附</button>
+  <button id="sessbtn" title="只顯示紐約時間 18:00～01:00 的 K 線">18:00–01:00</button>
+  <button id="ttoggle" title="繪圖工具">✏️</button><button id="kzbtn" title="Killzones 週循環">KZ</button>
+  <button id="obbtn" title="OB Line V1.2（只用目前位置之前的 K 線計算；右鍵 = 設定）">OB</button>
+  <span class="m" style="margin-left:auto;padding-right:6px" id="adjtxt"></span><button id="morebtn" title="更多">⋯</button>
+</div>
+<div id="more"><div id="moregrid"></div><div class="mrow"><button id="mkz">KZ 設定</button><button id="mob">OB 設定</button></div></div>
+<div id="mtrade"><span id="mpos"></span><button id="mbuy">買進</button><button id="msell">賣出</button><button id="mclose">平倉</button></div>
+<div id="side" aria-label="繪圖工具">
+  <button id="t_cursor" class="on" title="游標 (Esc)"><svg viewBox="0 0 20 20"><path d="M5 3l10 6.5-4.5 1L13 16l-2 1-2.5-5.5L5 14z"/></svg></button>
+  <button id="t_hline" title="水平線 (Alt+H)"><svg viewBox="0 0 20 20"><path d="M2 10h16"/><circle cx="10" cy="10" r="2" fill="currentColor"/></svg></button>
+  <button id="t_hseg" title="水平線段"><svg viewBox="0 0 20 20"><path d="M4 10h12"/><circle cx="4" cy="10" r="2" fill="currentColor"/><circle cx="16" cy="10" r="2" fill="currentColor"/></svg></button>
+  <button id="t_rect" title="矩形 (Alt+Shift+R)"><svg viewBox="0 0 20 20"><rect x="3" y="5" width="14" height="10" rx="1"/></svg></button>
+  <button id="t_long" title="多頭部位 (Alt+Shift+L)"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14" rx="1"/><path d="M3 12h14"/><path d="M5.5 9.5l3-3 2 2 3.5-3.5M11.5 5h2.5v2.5"/></svg></button>
+  <button id="t_short" title="空頭部位 (Alt+Shift+S)"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14" rx="1"/><path d="M3 8h14"/><path d="M5.5 10.5l3 3 2-2 3.5 3.5M11.5 15h2.5v-2.5"/></svg></button>
+  <div class="gap"></div>
+  <button id="t_clear" title="刪除這個回測的所有繪圖"><svg viewBox="0 0 20 20"><path d="M4 6h12M8 6V4h4v2M6 6l1 11h6l1-11"/></svg></button>
+</div>
+<div id="wrap">
+  <div id="props">
+    <span class="lbl" id="p_kind"></span>
+    <input type="color" id="p_col" title="顏色">
+    <span id="p_riskw" style="display:none;align-items:center;gap:4px"><span class="lbl">固定風險 $</span><input type="number" id="p_risk" min="1" step="50" style="width:84px;background:var(--bg);border:1px solid var(--border);padding:3px 4px"><span class="lbl" id="p_qty"></span></span>
+    <select id="p_w" title="線寬"><option value="1">1px</option><option value="2">2px</option><option value="3">3px</option><option value="4">4px</option></select>
+    <button id="p_del" title="刪除 (Delete)">🗑</button>
+  </div>
+  <div id="legend"><div id="ohlc"></div>
+    <div class="ind" id="kzleg"><span>KZ Weekly</span><button id="kzeye" title="顯示／隱藏">👁</button><button id="kzgear" title="設定">⚙</button></div>
+    <div class="ind" id="obleg"><span>OB Line V1.2</span><button id="obeye" title="顯示／隱藏">👁</button><button id="obgear" title="設定">⚙</button><span id="obcount"></span></div>
+  </div>
+  <div id="status"></div>
+  <div id="wm"></div>
+  <div id="chart"></div>
+  <div id="tfbox"><div id="tftext"></div></div>
+  <div id="toast"></div>
+  <div id="empty"><div>還沒有開啟任何回測</div><button id="emptynew">新增回測</button></div>
+  <div id="rbar">
+    <button class="big" id="playbtn" title="播放／暫停（空白鍵）">▶</button>
+    <button class="big" id="stepbtn" title="下一根（→）">⏭</button>
+    <select id="speed" title="播放速度"><option value="1">1 根/秒</option><option value="2">2 根/秒</option><option value="3">3 根/秒</option><option value="5">5 根/秒</option><option value="10">10 根/秒</option><option value="20">20 根/秒</option></select>
+    <select id="unit" title="每一步前進多少"><option value="tf">每步：1 根圖表K</option><option value="1">每步：1 分鐘</option></select>
+    <span class="clock" id="clock">—</span>
+    <span class="sep"></span>
+    <button id="next18" title="快轉到下一個交易日 18:00 開盤前（持倉、掛單會照樣判斷成交）">下個 18:00 ⏩</button>
+    <button id="nextkz" title="快轉到下一次「當天 KZ 高/低」被碰破的那根（持倉、掛單會照樣判斷成交）">下個 KZ 被破 ⏩</button>
+    <input type="datetime-local" id="ffto" title="快轉到這個時間（紐約時間）">
+    <button id="ffbtn" title="快轉到左邊的時間">快轉</button>
+  </div>
+</div>
+
+<div id="panel">
+  <div id="tabs"><button id="pclose" title="收起">✕</button><button data-tab="order" class="on">下單</button><button data-tab="log">交易紀錄 <span id="ntr"></span></button><button data-tab="stats">統計</button></div>
+  <div class="tab on" id="tab_order">
+    <div class="card">
+      <h5>目前價格<span id="curtime"></span></h5>
+      <div class="px" id="curpx">—</div>
+      <div class="fr" style="margin-top:10px"><label>口數</label><input type="number" id="o_qty" min="1" step="1"></div>
+      <div class="fr"><label>類型</label><span class="seg"><button id="ot_mkt">市價</button><button id="ot_lmt">掛單</button></span></div>
+      <div class="fr" id="lmtrow" style="display:none"><label>掛單價格</label><input type="number" id="o_price" step="0.25"></div>
+      <div class="bs"><button id="buy">買進<small id="buypx">—</small></button><button id="sell">賣出<small id="sellpx">—</small></button></div>
+      <div class="hint" style="margin-top:8px" id="riskhint"></div>
+    </div>
+    <div class="card" id="poscard" style="display:none">
+      <h5>持倉<span id="posupl"></span></h5>
+      <div class="kv" id="poskv"></div>
+      <div class="fr"><label>停損</label><input type="number" id="p_sl" step="0.25" placeholder="無"></div>
+      <div class="fr"><label>停利</label><input type="number" id="p_tp" step="0.25" placeholder="無"></div>
+      <div class="hint">在圖上從持倉線右邊的 TP／SL 拖出停利停損線，線上的 ✕ 可以移除；已拉出的線可以直接拖曳。</div>
+      <div class="row2"><button id="bebtn" title="停損移到進場價">移到保本</button><button id="closebtn" style="background:#3a1f25;border-color:#5a2a33">平倉 (Shift+C)</button></div>
+    </div>
+    <div class="card" id="ordcard" style="display:none">
+      <h5>掛單</h5>
+      <div class="kv" id="ordkv"></div>
+      <div class="hint">可以在圖上拖曳掛單線改價格，也可以從掛單線右邊拖出 TP／SL（成交後自動套用）。</div>
+      <div class="row2"><button id="cancelord">取消掛單</button></div>
+    </div>
+    <div class="card">
+      <h5>帳戶</h5>
+      <div class="kv" id="acctkv"></div>
+    </div>
+    <div class="card">
+      <h5>回測設定</h5>
+      <div class="fr"><label>商品</label><select id="s_inst"><option value="NQ">NQ（每點 $20）</option><option value="MNQ">MNQ（每點 $2）</option></select></div>
+      <div class="fr"><label>手續費（每口來回 $）</label><input type="number" id="s_comm" min="0" step="0.5"></div>
+      <div class="fr"><label>市價／停損滑價（tick）</label><input type="number" id="s_slip" min="0" step="1"></div>
+      <div class="fr"><label>同一根 K 停損停利都碰到</label><select id="s_same"><option value="sl">算停損（保守）</option><option value="dir">依 K 棒方向推估</option></select></div>
+      <div class="fr"><label><input type="checkbox" id="s_pause">成交或出場時自動暫停</label></div>
+      <div class="hint">成交判斷用 1 分鐘 K：掛單價被碰到就成交；停損、停利被碰到就出場，跳空開盤則用開盤價。</div>
+      <div class="hint" style="margin-top:6px">快捷鍵：→ 下一根 · 空白鍵 播放／暫停 · Shift+B 買 · Shift+S 賣 · Shift+C 平倉</div>
+    </div>
+  </div>
+  <div class="tab" id="tab_log">
+    <div class="tbar"><button id="csvbtn">匯出 CSV</button><span class="m" id="loginfo"></span></div>
+    <table><thead><tr><th>#</th><th>方向</th><th>進場（紐約）</th><th>結果</th><th>R</th><th>損益</th></tr></thead><tbody id="logbody"></tbody></table>
+  </div>
+  <div class="tab" id="tab_stats">
+    <div class="grid" id="tiles"></div>
+    <div class="card"><h5>權益曲線<span id="eqtxt"></span></h5><canvas id="eq"></canvas></div>
+    <div class="card"><h5>多空分開</h5><table id="lstab"></table></div>
+    <div class="card"><h5>依進場時段（紐約時間）</h5><table id="hrtab"></table></div>
+  </div>
+  <div id="savest"><span id="savetxt">—</span><span style="margin-left:auto" class="m" title="→ 下一根　空白鍵 播放／暫停　Shift+B 買進　Shift+S 賣出　Shift+C 平倉　數字+Enter 切週期">⌨ 快捷鍵</span></div>
+</div>
+
+<div id="mask"></div>
+<div id="sesdlg" class="dlg" role="dialog" aria-label="回測進度">
+  <header>回測進度<button id="sesx" aria-label="關閉">✕</button></header>
+  <div class="body">
+    <h4>新增回測</h4>
+    <div class="newgrid">
+      <label for="n_name">名稱</label><input type="text" id="n_name" style="width:100%">
+      <label for="n_start">起點（紐約時間）</label><span style="display:flex;gap:6px"><input type="datetime-local" id="n_start" style="flex:1"><button id="n_rand" style="background:var(--bg);border:1px solid var(--border);white-space:nowrap" title="隨機挑一個交易日 18:00">隨機</button></span>
+      <label for="n_adj">價格</label><select id="n_adj"><option value="0">未調整（實際成交價）</option><option value="1">換月回補</option></select>
+      <label for="n_inst">商品</label><select id="n_inst"><option value="NQ">NQ（每點 $20）</option><option value="MNQ">MNQ（每點 $2）</option></select>
+      <label for="n_bal">起始資金 $</label><input type="number" id="n_bal" min="100" step="1000">
+      <label for="n_comm">手續費／口 $</label><input type="number" id="n_comm" min="0" step="0.5">
+    </div>
+    <div class="hint" style="margin:8px 0 0">起點之後的 K 線會全部隱藏，按「下一根」或播放才會一根一根出現。</div>
+    <div class="row"><button class="pri" id="n_ok">建立並開始</button></div>
+    <h4>已存的回測（存在這支手機，下次打開會接著上次的位置）</h4>
+    <div class="row" style="flex-wrap:wrap"><button id="sx_out">匯出全部回測</button><button id="sx_in">匯入回測…</button><input type="file" id="sx_file" accept=".json,application/json" hidden><button id="dx_btn">K 線資料…</button></div>
+    <table id="seslist"></table>
+  </div>
+</div>
+<div id="obdlg" class="dlg" role="dialog" aria-label="OB Line V1.2 設定">
+  <header>OB Line V1.2 設定<button id="obx" aria-label="關閉">✕</button></header>
+  <div class="body">
+    <div class="hint" style="margin:8px 0 0">照 TradingView 的 Pine 指標一根一根算到目前位置（目前那根沒走完就用到游標為止的價格），不會偷看未來。用圖表週期、全天的 K 線計算。滑鼠停在項目上可看說明。</div>
+    <div id="olrows"></div>
+  </div>
+  <footer><button id="obdef">恢復預設</button><button id="obcancel">取消</button><button class="pri" id="obok">確定</button></footer>
+</div>
+<div id="dlg" class="dlg" role="dialog" aria-label="KZ Weekly 設定">
+  <header>KZ Weekly 設定<button id="dlgx" aria-label="關閉">✕</button></header>
+  <div class="body">
+    <h4>Killzones（時間皆為紐約時間）</h4>
+    <div id="kzrows"></div>
+    <h4>顯示</h4>
+    <div class="row"><label>方框不透明度 (%)</label><input type="number" id="s_boxOp" min="0" max="100"></div>
+    <div class="row"><label><input type="checkbox" id="s_showHl">高低點延伸線</label></div>
+    <div class="row"><label>線條不透明度 (%)</label><input type="number" id="s_lnOp" min="0" max="100"></div>
+    <div class="row"><label>線條樣式</label>
+      <select id="s_lnStyle"><option>Solid</option><option>Dotted</option><option>Dashed</option></select>
+      <input type="number" id="s_lnWidth" min="1" max="5"></div>
+    <h4>星期標示（亞洲方框上方，台灣時間）</h4>
+    <div class="row"><label><input type="checkbox" id="s_showDow">顯示星期與日期</label></div>
+    <div class="row"><label>文字大小</label><select id="s_dowSize"><option>Small</option><option>Normal</option><option>Large</option><option>Huge</option></select></div>
+    <h4>浮水印（右下角）</h4>
+    <div class="row"><label><input type="checkbox" id="s_showWm">顯示日期與商品</label><input type="color" id="s_wmCol"></div>
+    <div class="row"><label>文字大小</label><select id="s_wmSize"><option>Small</option><option>Normal</option><option>Large</option><option>Huge</option></select></div>
+    <h4>每週重置（台灣時間）</h4>
+    <div class="row"><label>週一幾點清空重來</label><input type="number" id="s_reset" min="0" max="23"></div>
+  </div>
+  <footer><button id="dlgdef">恢復預設</button><button id="dlgcancel">取消</button><button class="pri" id="dlgok">確定</button></footer>
+</div>
+
+
+</div>
+
+<div id="dataov">
+  <div class="card">
+    <div class="ttl">NQ 手動回測</div>
+    <p>第一次使用要先把 K 線資料匯入這支手機（約 14MB，只要一次）。匯入後不用網路也能玩。</p>
+    <ol>
+      <li>把資料檔 <b>NQ資料_2010-2026.nqd</b> 存到 iPhone 的「檔案」</li>
+      <li>按下面的按鈕，從「檔案」選它</li>
+    </ol>
+    <button id="dov_pick" class="pri">選擇資料檔…</button>
+    <input type="file" id="dov_file" hidden>
+    <div id="dov_msg" class="m"></div>
+  </div>
+</div>
+
+<script>
+// ---------------- 手機裡的 K 線資料（IndexedDB） ----------------
+window.NQ_DATA = (function () {
+  const DBN = "nq_replay_data", ST = "years";
+  let dbp = null, ready = null, resolveReady;
+  ready = new Promise(r => { resolveReady = r; });
+  function open() {
+    if (!dbp) dbp = new Promise((res, rej) => {
+      const q = indexedDB.open(DBN, 1);
+      q.onupgradeneeded = () => { q.result.createObjectStore(ST); q.result.createObjectStore("meta"); };
+      q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error);
+    });
+    return dbp;
+  }
+  async function tx(store, mode, fn) {
+    const db = await open();
+    return new Promise((res, rej) => { const t = db.transaction(store, mode); const r = fn(t.objectStore(store)); t.oncomplete = () => res(r && r.result); t.onerror = () => rej(t.error); });
+  }
+  const get = y => tx(ST, "readonly", s => s.get(y)).then(v => v ? new Uint8Array(v) : null);
+  const meta = () => tx("meta", "readonly", s => s.get("index"));
+  async function importFile(file, onProgress) {
+    const buf = new Uint8Array(await file.arrayBuffer());
+    if (String.fromCharCode(...buf.slice(0, 4)) !== "NQD1") throw new Error("這不是 NQ 資料檔（.nqd）");
+    const hl = new DataView(buf.buffer).getUint32(4, true);
+    const head = JSON.parse(new TextDecoder().decode(buf.slice(8, 8 + hl)));
+    const base = 8 + hl;
+    let k = 0;
+    for (const y of head.years) {
+      const part = buf.slice(base + y.offset, base + y.offset + y.length).buffer;
+      await tx(ST, "readwrite", s => s.put(part, y.year));
+      onProgress && onProgress(++k, head.years.length, y.year);
+    }
+    await tx("meta", "readwrite", s => s.put({ years: head.years.map(({ offset, length, ...r }) => r), imported: Date.now(), name: file.name }, "index"));
+    try { if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); } catch (e) {}
+    return head.years.length;
+  }
+  async function check() {
+    try { const m = await meta(); if (m && m.years && m.years.length) { resolveReady(m); return true; } } catch (e) {}
+    return false;
+  }
+  return { get, meta, importFile, check, whenReady: () => ready, markReady: m => resolveReady(m) };
+})();
+</script>
+<script src="vendor/lightweight-charts.standalone.production.js"></script>
+<script src="vendor/pako.min.js"></script>
+<script>window.NQ_INDEX = [{"year": 2010, "n": 177590, "first": 1275847200, "last": 1293812040, "bytes": 314532}, {"year": 2011, "n": 320497, "first": 1293991200, "last": 1325261640, "bytes": 618509}, {"year": 2012, "n": 319635, "first": 1325570400, "last": 1356974040, "bytes": 571333}, {"year": 2013, "n": 311313, "first": 1357106400, "last": 1388510040, "bytes": 535494}, {"year": 2014, "n": 311501, "first": 1388642400, "last": 1419959640, "bytes": 593048}, {"year": 2015, "n": 330049, "first": 1420135200, "last": 1451581140, "bytes": 714720}, {"year": 2016, "n": 336386, "first": 1451844000, "last": 1483117140, "bytes": 717438}, {"year": 2017, "n": 341495, "first": 1483380000, "last": 1514566740, "bytes": 650970}, {"year": 2018, "n": 349186, "first": 1514829600, "last": 1546275540, "bytes": 895551}, {"year": 2019, "n": 349865, "first": 1546365600, "last": 1577811540, "bytes": 852052}, {"year": 2020, "n": 349691, "first": 1577901600, "last": 1609433940, "bytes": 1108127}, {"year": 2021, "n": 353427, "first": 1609696800, "last": 1640969940, "bytes": 1087873}, {"year": 2022, "n": 354115, "first": 1641146400, "last": 1672419540, "bytes": 1220130}, {"year": 2023, "n": 353400, "first": 1672682400, "last": 1703869140, "bytes": 1077182}, {"year": 2024, "n": 355005, "first": 1704132000, "last": 1735664340, "bytes": 1153152}, {"year": 2025, "n": 352562, "first": 1735754400, "last": 1767200340, "bytes": 1241844}, {"year": 2026, "n": 285243, "first": 1767290400, "last": 1792526340, "bytes": 1087079}];</script>
+<script>// ============================================================================
+// NQ 手動回測（線上版）的「後端」：原本 server.py / killzones.py / ob_line.py 的邏輯，改在瀏覽器裡跑。
+// 頁面上原本的 fetch("/api/...") 呼叫都由這裡回答，所以畫面程式跟本機版幾乎一樣。
+// 資料：data/nq_YYYY.bin（每年一個 gzip 檔），用到哪幾年才下載哪幾年。
+// 存檔：回測進度存在 Claude 的 db（同一個帳號手機電腦共用）；沒有 db 時改存這台裝置的瀏覽器。
+// ============================================================================
+(function () {
+const ORIG_FETCH = window.fetch.bind(window);
+const TIMEFRAMES = [1, 2, 3, 5, 10, 15, 30, 45, 60, 120, 240, 1440, 10080];
+const SESSION_ONLY = [18 * 60, 1 * 60];
+const D = 86400;
+const YEARS = window.NQ_INDEX;                       // [{year, n, first, last, bytes}]
+const FIRST = YEARS[0].first, LAST = YEARS[YEARS.length - 1].last;
+
+// ---------------- 小工具 ----------------
+function ub(a, x, lo = 0, hi = a.length) { while (lo < hi) { const m = (lo + hi) >> 1; if (a[m] <= x) lo = m + 1; else hi = m; } return lo; }   // searchsorted right
+function lb(a, x, lo = 0, hi = a.length) { while (lo < hi) { const m = (lo + hi) >> 1; if (a[m] < x) lo = m + 1; else hi = m; } return lo; }    // searchsorted left
+const yearOf = t => new Date(t * 1000).getUTCFullYear();
+const fdiv = (a, b) => Math.floor(a / b);
+function tkey(tf, t) {
+  if (tf === 10080) { const day = fdiv(t + 6 * 3600, D); return (day - (((day + 3) % 7) + 7) % 7) * D; }
+  if (tf === 1440) return fdiv(t + 6 * 3600, D) * D;
+  if (tf === 240) return fdiv(t - 2 * 3600, 14400) * 14400 + 2 * 3600;
+  const s = tf * 60; return fdiv(t, s) * s;
+}
+async function gunzip(u8) {
+  if (typeof DecompressionStream !== "undefined") {
+    const ds = new DecompressionStream("gzip");
+    const buf = await new Response(new Blob([u8]).stream().pipeThrough(ds)).arrayBuffer();
+    return new Uint8Array(buf);
+  }
+  if (window.pako) return window.pako.ungzip(u8);
+  throw new Error("這個瀏覽器不能解壓縮資料（請更新瀏覽器）");
+}
+
+// ---------------- 資料：每年一個檔 ----------------
+const contracts = [], cIndex = {};
+const yearCache = {};                                 // year → {t, o, h, l, c, k}
+async function loadYear(y) {
+  if (yearCache[y]) return yearCache[y];
+  const u8 = await window.NQ_DATA.get(y);
+  if (!u8) throw new Error(`手機裡還沒有 ${y} 年的資料：請重新匯入資料檔`);
+  const raw = await gunzip(u8);
+  const dv = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
+  const hl = dv.getUint32(0, true);
+  const head = JSON.parse(new TextDecoder().decode(raw.subarray(4, 4 + hl)));
+  const n = head.n; let off = 4 + hl;
+  const take = (Ctor, bytes) => { const b = raw.slice(off, off + n * bytes); off += n * bytes; return new Ctor(b.buffer); };
+  const dt = take(Int32Array, 4), dO = take(Int16Array, 2), dH = take(Int16Array, 2), dL = take(Int16Array, 2), dC = take(Int16Array, 2), kk = take(Uint8Array, 1);
+  const map = head.contracts.map(nm => { if (!(nm in cIndex)) { cIndex[nm] = contracts.length; contracts.push(nm); } return cIndex[nm]; });
+  const t = new Int32Array(n), o = new Float32Array(n), h = new Float32Array(n), l = new Float32Array(n), c = new Float32Array(n), k = new Int16Array(n);
+  let tt = head.t0 - 60, pc = head.p0;
+  for (let i = 0; i < n; i++) {
+    tt += dt[i] * 60; t[i] = tt;
+    const O = pc + dO[i]; o[i] = O * 0.25; h[i] = (O + dH[i]) * 0.25; l[i] = (O - dL[i]) * 0.25;
+    const C = O + dC[i]; c[i] = C * 0.25; pc = C; k[i] = map[kk[i]];
+  }
+  return (yearCache[y] = { t, o, h, l, c, k });
+}
+
+// 目前載入的連續年份 [y0, y1]；換範圍時重組陣列並清掉所有快取
+let Y0 = null, Y1 = null, epoch = 0;
+let base = null;                                      // {0: [t,o,h,l,c,k], 1: 只顯示時段}
+let aggCache = {};
+const loadingYears = {};
+async function ensureYears(a, b) {
+  a = Math.max(a, YEARS[0].year); b = Math.min(b, YEARS[YEARS.length - 1].year);
+  if (Y0 !== null && a >= Y0 && b <= Y1) return false;
+  const n0 = Y0 === null ? a : Math.min(a, Y0), n1 = Y1 === null ? b : Math.max(b, Y1);
+  const key = n0 + "-" + n1;
+  if (!loadingYears[key]) loadingYears[key] = (async () => {
+    const ys = []; for (let y = n0; y <= n1; y++) ys.push(y);
+    const parts = await Promise.all(ys.map(loadYear));
+    if (Y0 !== null && n0 >= Y0 && n1 <= Y1) return;
+    const N = parts.reduce((s, p) => s + p.t.length, 0);
+    const t = new Int32Array(N), o = new Float32Array(N), h = new Float32Array(N), l = new Float32Array(N), c = new Float32Array(N), k = new Int16Array(N);
+    let at = 0;
+    for (const p of parts) { t.set(p.t, at); o.set(p.o, at); h.set(p.h, at); l.set(p.l, at); c.set(p.c, at); k.set(p.k, at); at += p.t.length; }
+    // 只顯示時段（18:00–01:00）
+    let m = 0; for (let i = 0; i < N; i++) { const md = fdiv(t[i] % D, 60); if (md >= SESSION_ONLY[0] || md < SESSION_ONLY[1]) m++; }
+    const s = [new Int32Array(m), new Float32Array(m), new Float32Array(m), new Float32Array(m), new Float32Array(m), new Int16Array(m)];
+    for (let i = 0, j = 0; i < N; i++) { const md = fdiv(t[i] % D, 60); if (md >= SESSION_ONLY[0] || md < SESSION_ONLY[1]) { s[0][j] = t[i]; s[1][j] = o[i]; s[2][j] = h[i]; s[3][j] = l[i]; s[4][j] = c[i]; s[5][j] = k[i]; j++; } }
+    base = { 0: [t, o, h, l, c, k], 1: s };
+    Y0 = n0; Y1 = n1; epoch++; aggCache = {}; oblCache.clear(); weekCache = {};
+    // 太舊的年份從記憶體拿掉（手機記憶體有限）
+    for (const y of Object.keys(yearCache)) if (+y < n0 || +y > n1) delete yearCache[y];
+  })().finally(() => { delete loadingYears[key]; });
+  await loadingYears[key];
+  return true;
+}
+// 游標附近需要的年份：今年＋去年（暖機、往回看），年底前 20 天先載入明年
+async function ensureAround(cur) {
+  const y = yearOf(Math.min(Math.max(cur, FIRST), LAST));
+  const dec = new Date(Date.UTC(y, 11, 11)).getTime() / 1000;
+  await ensureYears(y - 1, cur >= dec ? y + 1 : y);
+}
+function agg(tf, sess) {
+  const key = tf + ":" + sess;
+  if (aggCache[key]) return aggCache[key];
+  const [t, o, h, l, c, k] = base[sess];
+  const n = t.length;
+  if (tf === 1) { const st = new Int32Array(n); for (let i = 0; i < n; i++) st[i] = i; return (aggCache[key] = { t, o, h, l, c, k, st }); }
+  let m = 0, prev = null;
+  const keys = new Float64Array(n);
+  for (let i = 0; i < n; i++) { keys[i] = tkey(tf, t[i]); if (keys[i] !== prev) { m++; prev = keys[i]; } }
+  const T = new Float64Array(m), O = new Float32Array(m), H = new Float32Array(m), L = new Float32Array(m), C = new Float32Array(m), K = new Int16Array(m), ST = new Int32Array(m);
+  let j = -1; prev = null;
+  for (let i = 0; i < n; i++) {
+    if (keys[i] !== prev) { j++; prev = keys[i]; T[j] = keys[i]; O[j] = o[i]; H[j] = h[i]; L[j] = l[i]; ST[j] = i; }
+    else { if (h[i] > H[j]) H[j] = h[i]; if (l[i] < L[j]) L[j] = l[i]; }
+    C[j] = c[i]; K[j] = k[i];
+  }
+  return (aggCache[key] = { t: T, o: O, h: H, l: L, c: C, k: K, st: ST });
+}
+const idx = (sess, cur) => ub(base[sess][0], cur) - 1;
+function cut(tf, sess, cur) {
+  const i = idx(sess, cur);
+  if (i < 0) return [0, null, -1];
+  const A = agg(tf, sess), j = ub(A.st, i) - 1, a = A.st[j];
+  const [, o1, h1, l1, c1, k1] = base[sess];
+  let hi = -Infinity, lo = Infinity;
+  for (let x = a; x <= i; x++) { if (h1[x] > hi) hi = h1[x]; if (l1[x] < lo) lo = l1[x]; }
+  return [j + 1, [A.t[j], o1[a], hi, lo, c1[i], 0, k1[i]], i];
+}
+function rows(tf, sess, start, stop, nj, part) {
+  const A = agg(tf, sess);
+  start = Math.max(0, start); stop = Math.min(Math.max(0, stop), nj);
+  const sl = a => Array.from(a.subarray(start, Math.max(start, stop)));
+  const out = { t: sl(A.t), o: sl(A.o), h: sl(A.h), l: sl(A.l), c: sl(A.c), v: new Array(Math.max(0, stop - start)).fill(0), k: sl(A.k) };
+  if (stop === nj && stop > start && part) "tohlcvk".split("").forEach((nm, x) => { out[nm][out[nm].length - 1] = part[x]; });
+  return out;
+}
+
+// ---------------- 時區：紐約牆上時間 → 台灣牆上時間 ----------------
+const dstCache = {};
+function dstRange(y) {            // 美國夏令時間：3 月第 2 個週日 02:00 ～ 11 月第 1 個週日 02:00（紐約當地時間）
+  if (dstCache[y]) return dstCache[y];
+  const nthSun = (m, nth) => { const d1 = new Date(Date.UTC(y, m, 1)).getUTCDay(); return 1 + ((7 - d1) % 7) + (nth - 1) * 7; };
+  return (dstCache[y] = [Date.UTC(y, 2, nthSun(2, 2), 2) / 1000, Date.UTC(y, 10, nthSun(10, 1), 2) / 1000]);
+}
+function taipeiWall(t) { const r = dstRange(yearOf(t)); return t + (t >= r[0] && t < r[1] ? 12 : 13) * 3600; }
+function weekId(tw, reset) {      // 每週一台灣 reset 點重置
+  const day = fdiv(tw, D), dow = ((day + 3) % 7 + 7) % 7, r = (day - dow) * D + reset * 3600;
+  return tw < r ? r - 7 * D : r;
+}
+
+// ---------------- KZ Weekly（killzones.py） ----------------
+const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+function parseSes(s) { const m = /^(\d{2})(\d{2})-(\d{2})(\d{2})/.exec(s || ""); return m ? [+m[1] * 60 + +m[2], +m[3] * 60 + +m[4]] : null; }
+function kzCompute(t, h, l, sessions, reset, showHl) {
+  const n = t.length, tw = new Float64Array(n), week = new Float64Array(n);
+  for (let i = 0; i < n; i++) { tw[i] = taipeiWall(t[i]); week[i] = weekId(tw[i], reset); }
+  const wend = new Int32Array(n);
+  for (let i = n - 1, last = n - 1; i >= 0; i--) { if (i < n - 1 && week[i] !== week[i + 1]) last = i; wend[i] = last; }
+  const boxes = [], lines = [], labels = [];
+  for (const [kz, ses] of sessions) {
+    const ab = parseSes(ses); if (!ab) continue;
+    const [a, b] = ab;
+    const inS = i => { const md = fdiv(t[i] % D, 60); return md >= a && md < b; };
+    for (let s = 0; s < n; s++) {
+      if (!inS(s) || (s > 0 && inS(s - 1))) continue;
+      let e = s; while (e + 1 < n && inS(e + 1)) e++;
+      const w = week[s];
+      if (week[e] !== w) { s = e; continue; }
+      let top = -Infinity, bot = Infinity;
+      for (let x = s; x <= e; x++) { if (h[x] > top) top = h[x]; if (l[x] < bot) bot = l[x]; }
+      boxes.push([kz, t[s], t[e], top, bot]);
+      if (kz === 0) { const d = new Date(tw[s] * 1000); labels.push([kz, t[s], top, `${DOW[(d.getUTCDay() + 6) % 7]} ${d.getUTCMonth() + 1}/${d.getUTCDate()}`]); }
+      const j = e + 1;
+      if (showHl && j < n && week[j] === w) {
+        const last = wend[j];
+        for (const [y, up] of [[top, true], [bot, false]]) {
+          let q = last;
+          for (let x = j; x <= last; x++) if (up ? h[x] >= y : l[x] <= y) { q = x; break; }
+          lines.push([kz, t[e], t[q], y]);
+        }
+      }
+      s = e;
+    }
+  }
+  return { boxes, lines, labels };
+}
+
+// ---------------- OB Line V1.2（ob_line.py） ----------------
+const OBL_DEFAULT = { win_s: 18, win_e: 18, use_ob: false, periods: 5, threshold: 0, use_kzob: true, kz1: "1800-1900", kz2: "2100-2200",
+  kz3: "0300-0400", kz4: "0900-1000", use_bos: true, swing_n: 5, bos_find: "last", brk_mode: "wick", lookback: 50, use_cluster: true,
+  min_body: 0.3, atr_len: 14, show_rt: true, only_rt: true, pin_pct: 50, max_age: 1, ln_len: 15, reset_hr: 6 };
+const OBL_INT = ["win_s", "win_e", "periods", "swing_n", "lookback", "atr_len", "ln_len", "reset_hr"];
+const OBL_FLOAT = ["threshold", "min_body", "pin_pct", "max_age"];
+const OBL_BOOL = ["use_ob", "use_kzob", "use_bos", "use_cluster", "show_rt", "only_rt"];
+function oblParams(q) {
+  const p = Object.assign({}, OBL_DEFAULT);
+  for (const k of Object.keys(OBL_DEFAULT)) {
+    if (!(k in q)) continue;
+    const v = q[k];
+    if (OBL_INT.includes(k)) { const x = Math.trunc(+v); if (isFinite(x)) p[k] = x; }
+    else if (OBL_FLOAT.includes(k)) { const x = +v; if (isFinite(x)) p[k] = x; }
+    else if (OBL_BOOL.includes(k)) p[k] = v === "1" || v === "true";
+    else p[k] = String(v);
+  }
+  const cl = (k, a, b) => { p[k] = Math.min(b, Math.max(a, p[k])); };
+  cl("win_s", 0, 23); cl("win_e", 1, 24); cl("periods", 1, 1e9); cl("swing_n", 1, 50); cl("lookback", 1, 200); cl("atr_len", 1, 1e9);
+  cl("ln_len", 1, 500); cl("reset_hr", 0, 23); cl("pin_pct", 1, 100); cl("max_age", 0.1, 1e9); cl("min_body", 0, 1e9); cl("threshold", 0, 1e9);
+  return p;
+}
+class OBEngine {
+  constructor(A, week, start, p, tf) {
+    this.A = A; this.week = week; this.p = p; this.tf = tf; this.start = start; this.next = start;
+    this.sess = [p.kz1, p.kz2, p.kz3, p.kz4].map(parseSes);
+    this.lines = []; this.tris = [];
+    this.st = { pending: [], marked_b: [], marked_s: [], kz: [[NaN, NaN], [NaN, NaN], [NaN, NaN], [NaN, NaN]], act_hi: [], act_lo: [],
+      sh_p: NaN, sh_x: null, sh_brk: true, sl_p: NaN, sl_x: null, sl_brk: true, tr_sum: 0, tr_n: 0, rma: NaN };
+    this.atr = [];
+    this.ov = null; this.cur = start;
+  }
+  O(j) { return this.ov && j === this.cur ? this.ov[0] : this.A.o[j]; }
+  H(j) { return this.ov && j === this.cur ? this.ov[1] : this.A.h[j]; }
+  L(j) { return this.ov && j === this.cur ? this.ov[2] : this.A.l[j]; }
+  C(j) { return this.ov && j === this.cur ? this.ov[3] : this.A.c[j]; }
+  ATR(j) { const k = j - this.start; return k >= 0 && k < this.atr.length ? this.atr[k] : NaN; }
+  inWin(j) { const hr = fdiv(this.A.t[j] % D, 3600), a = this.p.win_s, b = this.p.win_e; return a < b ? hr >= a && hr < b : hr >= a || hr < b; }
+  isOpp(red, j) {
+    if (j < this.start) return false;
+    const o = this.O(j), c = this.C(j), colOk = red ? c < o : c > o, mb = this.p.min_body;
+    if (mb <= 0) return colOk;
+    const a = this.ATR(j);
+    return colOk && !isNaN(a) && Math.abs(c - o) >= a * mb;
+  }
+  lastOpp(red, frm) {
+    const i = this.cur;
+    if (frm <= this.p.lookback) for (let jj = frm; jj <= this.p.lookback; jj++) { if (i - jj < this.start) break; if (this.isOpp(red, i - jj)) return i - jj; }
+    return null;
+  }
+  step(i, ov = null, outL = null, outT = null) {
+    this.cur = i; this.ov = ov;
+    const p = this.p, st = this.st, lines = outL || this.lines, tris = outT || this.tris;
+    const o = this.O(i), h = this.H(i), l = this.L(i), c = this.C(i), t = this.A.t[i];
+    const tr = i === this.start ? h - l : Math.max(h - l, Math.abs(h - this.C(i - 1)), Math.abs(l - this.C(i - 1)));
+    const n = p.atr_len; let atr;
+    if (st.tr_n < n) { st.tr_sum += tr; st.tr_n++; atr = st.tr_n === n ? st.tr_sum / n : NaN; }
+    else atr = (st.rma * (n - 1) + tr) / n;
+    st.rma = atr; this.atr.push(atr);
+    const resetT = this.week[i];
+    if (i > this.start && this.week[i] !== this.week[i - 1]) { st.pending = []; st.act_hi = []; st.act_lo = []; for (const k of st.kz) k[0] = k[1] = NaN; }
+    const nowIn = this.inWin(i);
+    const upSrc = p.brk_mode === "close" ? c : h, dnSrc = p.brk_mode === "close" ? c : l;
+    const draw = (bull, x1, price, x2) => lines.push([bull, x1, x2, price]);
+    // 0. 第一次回踩與收針
+    const rng = h - l;
+    const pinB = rng > 0 && (Math.min(o, c) - l) >= rng * p.pin_pct / 100, pinS = rng > 0 && (h - Math.max(o, c)) >= rng * p.pin_pct / 100;
+    let rtB = false, rtS = false, rtBp = null, rtSp = null;
+    const pend = st.pending;
+    for (let k = pend.length - 1; k >= 0; k--) {
+      const [bull, price, ext, t0, x0] = pend[k];
+      if (t - t0 > p.max_age * 3600) pend.splice(k, 1);
+      else if (bull ? h < price : l > price) pend.splice(k, 1);
+      else if (bull ? l <= price : h >= price) {
+        pend.splice(k, 1);
+        const pierced = bull ? l < ext : h > ext;
+        if (nowIn && !pierced && (bull ? pinB : pinS)) {
+          if (bull) { rtB = true; rtBp = price; } else { rtS = true; rtSp = price; }
+          if (p.only_rt) draw(bull, x0, price, Math.max(x0 + p.ln_len, i));
+        }
+      }
+    }
+    if (p.show_rt) { if (rtB) tris.push([true, t, l, rtBp, c]); if (rtS) tris.push([false, t, h, rtSp, c]); }
+    const mark = (xLast, bull) => {
+      if (xLast == null) return;
+      const offLast = i - xLast; let offS = offLast;
+      if (p.use_cluster) while (offS < offLast + p.lookback && this.isOpp(bull, i - (offS + 1))) offS++;
+      const x1 = i - offS, price = this.O(x1);
+      let ext = bull ? this.L(xLast) : this.H(xLast);
+      for (let j = offLast; j <= offS; j++) ext = bull ? Math.min(ext, this.L(i - j)) : Math.max(ext, this.H(i - j));
+      const arr = bull ? st.marked_b : st.marked_s;
+      if (nowIn && this.inWin(x1) && this.week[x1] >= resetT && !arr.includes(x1)) {
+        arr.push(x1); if (arr.length > 500) arr.shift();
+        if (!p.only_rt) draw(bull, x1, price, x1 + p.ln_len);
+        pend.push([bull, price, ext, this.A.t[x1], x1]); if (pend.length > 200) pend.shift();
+      }
+    };
+    // 1. 連續 K
+    if (p.use_ob) {
+      const op = p.periods + 1;
+      if (i - op >= this.start) {
+        const cop = this.C(i - op), c1 = this.C(i - 1), rel = Math.abs(cop - c1) / cop * 100 >= p.threshold;
+        let up = 0, dn = 0;
+        for (let k = 1; k <= p.periods; k++) { if (this.C(i - k) > this.O(i - k)) up++; if (this.C(i - k) < this.O(i - k)) dn++; }
+        if (this.isOpp(true, i - op) && up === p.periods && rel) mark(i - op, true);
+        if (this.isOpp(false, i - op) && dn === p.periods && rel) mark(i - op, false);
+      }
+    }
+    // 2. KZ 突破
+    let kzUp = false, kzDn = false;
+    if (p.use_kzob && this.tf < 1440) {
+      const md = fdiv(t % D, 60), mdp = i > this.start ? fdiv(this.A.t[i - 1] % D, 60) : null;
+      this.sess.forEach((ses, k) => {
+        if (!ses) return;
+        const [a, b] = ses, ins = m => m !== null && (a < b ? m >= a && m < b : m >= a || m < b);
+        const inS = ins(md), inP = ins(mdp), kk = st.kz[k];
+        if (inS && !inP) { kk[0] = h; kk[1] = l; }
+        else if (inS && !isNaN(kk[0])) { kk[0] = Math.max(kk[0], h); kk[1] = Math.min(kk[1], l); }
+        else if (!inS && inP && !isNaN(kk[0])) { st.act_hi.push(kk[0]); st.act_lo.push(kk[1]); kk[0] = kk[1] = NaN; }
+      });
+      for (let k = st.act_hi.length - 1; k >= 0; k--) if (upSrc > st.act_hi[k]) { kzUp = true; st.act_hi.splice(k, 1); }
+      for (let k = st.act_lo.length - 1; k >= 0; k--) if (dnSrc < st.act_lo[k]) { kzDn = true; st.act_lo.splice(k, 1); }
+    }
+    const kzBx = this.lastOpp(true, 1), kzSx = this.lastOpp(false, 1);
+    if (kzUp) mark(kzBx, true);
+    if (kzDn) mark(kzSx, false);
+    // 3. BOS
+    const N = p.swing_n;
+    if (i - 2 * N >= this.start) {
+      const cp = i - N, hc = this.H(cp), lc = this.L(cp);
+      let lh = -Infinity, rh = -Infinity, ll = Infinity, rl = Infinity;
+      for (let j = cp - N; j < cp; j++) { lh = Math.max(lh, this.H(j)); ll = Math.min(ll, this.L(j)); }
+      for (let j = cp + 1; j <= i; j++) { rh = Math.max(rh, this.H(j)); rl = Math.min(rl, this.L(j)); }
+      if (hc > lh && hc >= rh) { st.sh_p = hc; st.sh_x = cp; st.sh_brk = false; }
+      if (lc < ll && lc <= rl) { st.sl_p = lc; st.sl_x = cp; st.sl_brk = false; }
+    }
+    const bosUp = p.use_bos && !st.sh_brk && upSrc > st.sh_p, bosDn = p.use_bos && !st.sl_brk && dnSrc < st.sl_p;
+    if (bosUp) st.sh_brk = true;
+    if (bosDn) st.sl_brk = true;
+    const extOff = (findLow, pivX) => {
+      const r = Math.min(i - pivX, p.lookback); let off = 1, ext = findLow ? this.L(i - 1) : this.H(i - 1);
+      for (let j = 2; j <= r; j++) { const v = findLow ? this.L(i - j) : this.H(i - j); if (findLow ? v < ext : v > ext) { ext = v; off = j; } }
+      return off;
+    };
+    const sUp = p.bos_find === "start" && bosUp ? extOff(true, st.sh_x) : 1, sDn = p.bos_find === "start" && bosDn ? extOff(false, st.sl_x) : 1;
+    const bosBx = this.lastOpp(true, sUp), bosSx = this.lastOpp(false, sDn);
+    if (bosUp) mark(bosBx, true);
+    if (bosDn) mark(bosSx, false);
+    this.ov = null;
+  }
+  advance(upto) { while (this.next <= upto) { this.step(this.next); this.next++; } }
+  partial(i, bar) {
+    const keep = structuredClone(this.st), nAtr = this.atr.length, L = [], T = [];
+    try { this.step(i, bar, L, T); } finally { this.atr.length = nAtr; this.st = keep; }
+    return [L, T];
+  }
+}
+const oblCache = new Map();
+let weekCache = {};
+function weekArr(tf, A, reset) {
+  const k = tf + ":" + reset;
+  if (!weekCache[k]) { const n = A.t.length, w = new Float64Array(n); for (let i = 0; i < n; i++) w[i] = weekId(taipeiWall(A.t[i]), reset); weekCache[k] = w; }
+  return weekCache[k];
+}
+
+// ---------------- 存檔：Claude db（帳號共用）或這台裝置 ----------------
+const LS_KEY = "nq_online_sessions_v1";
+let dbP = null;
+async function store() {
+  if (!dbP) dbP = (async () => {
+    try {
+      const use = window.claude && window.claude.use;
+      if (!use) return null;
+      const [db, user] = await Promise.all([use.call(window.claude, "db"), use.call(window.claude, "user")]);
+      if (!db || !user) return null;
+      const uid = await user.id();
+      if (!uid) return null;
+      const app = db.doc("data/users/" + uid + "/app");
+      return { db, uid, app, col: app.collection("sessions") };
+    } catch (e) { return null; }
+  })();
+  return dbP;
+}
+const local = {
+  all() { try { return JSON.parse(localStorage.getItem(LS_KEY) || "{}"); } catch (e) { return {}; } },
+  put(o) { try { localStorage.setItem(LS_KEY, JSON.stringify(o)); } catch (e) { throw new Error("這台裝置的瀏覽器存不下了"); } },
+};
+window.NQ_STORE_MODE = async () => ((await store()) ? "cloud" : "local");
+// 同一個回測一次只寫一筆，連續存檔會合併成最後一份
+const writing = {}, pendingW = {};
+async function writeDoc(ref, id, data) {
+  if (writing[id]) { pendingW[id] = data; return writing[id]; }
+  writing[id] = (async () => {
+    let d = data;
+    while (d) {
+      try { await ref.set(d); }
+      catch (e) { if (e && e.code === "unavailable") { await new Promise(r => setTimeout(r, 800 + Math.random() * 800)); await ref.set(d); } else throw e; }
+      d = pendingW[id]; delete pendingW[id];
+    }
+  })().finally(() => { delete writing[id]; });
+  return writing[id];
+}
+const fmtET = t => new Date(t * 1000).toISOString().slice(0, 16).replace("T", " ");
+function stamp(d) {
+  d.updated = Math.floor(Date.now() / 1000);
+  for (const k of ["start", "cur"]) if (typeof d[k] === "number") d[k + "_ET"] = fmtET(d[k]);
+  for (const x of d.trades || []) for (const k of ["t_in", "t_out"]) if (typeof x[k] === "number") x[k + "_ET"] = fmtET(x[k]);
+  return d;
+}
+function summary(d) {
+  const tr = d.trades || [];
+  return { id: d.id, name: d.name || "", adj: d.adj || "0", start: d.start, cur: d.cur, updated: d.updated || 0, n: tr.length,
+    wins: tr.filter(x => (x.pnl || 0) > 0).length, pnl: Math.round(tr.reduce((s, x) => s + (x.pnl || 0), 0) * 100) / 100,
+    inst: (d.settings || {}).inst || "NQ" };
+}
+async function sesList() {
+  const s = await store();
+  if (s) {
+    const [q, meta] = await Promise.all([s.col.get(), s.app.get()]);
+    const items = q.docs.filter(x => x.exists && !(x.data() || {}).deleted).map(x => summary(x.data()));
+    items.sort((a, b) => (b.updated || 0) - (a.updated || 0));
+    return { items, last: meta.exists ? (meta.data() || {}).last || null : null };
+  }
+  const all = local.all(), items = Object.values(all.s || {}).filter(x => !x.deleted).map(summary);
+  items.sort((a, b) => (b.updated || 0) - (a.updated || 0));
+  return { items, last: all.last || null };
+}
+async function sesGet(id) {
+  const s = await store();
+  if (s) { const g = await s.col.doc(id).get(); return g.exists && !(g.data() || {}).deleted ? JSON.parse(JSON.stringify(g.data())) : null; }
+  const x = (local.all().s || {})[id]; return x && !x.deleted ? x : null;
+}
+let lastMeta = null;
+async function sesPut(d) {
+  if (!/^[A-Za-z0-9_-]{1,48}$/.test(d.id || "")) throw new Error("bad id");
+  stamp(d);
+  const size = JSON.stringify(d).length;
+  if (size > 250000) throw new Error("這個回測太大（交易或繪圖太多），雲端存不下：請新開一個回測");
+  const s = await store();
+  if (s) {
+    await writeDoc(s.col.doc(d.id), d.id, d);
+    if (lastMeta !== d.id) { lastMeta = d.id; writeDoc(s.app, "_app", { last: d.id }).catch(() => { lastMeta = null; }); }
+    return d.updated;
+  }
+  const all = local.all(); all.s = all.s || {}; all.s[d.id] = d; all.last = d.id; local.put(all);
+  return d.updated;
+}
+async function sesDelete(id) {
+  const s = await store();
+  if (s) { await s.col.doc(id).delete(); return; }
+  const all = local.all(); if (all.s) delete all.s[id]; local.put(all);
+}
+
+// ---------------- API（跟 server.py 同樣的網址和回傳格式） ----------------
+async function api(path, q, body) {
+  if (path === "/api/info") return { series: { "0": "NQ_1min_continuous_unadjusted_ET" }, timeframes: TIMEFRAMES, version: window.PAGE_VERSION_ONLINE, first: FIRST, last: LAST };
+  if (path === "/api/sessions") return sesList();
+  if (path === "/api/session") {
+    if (body !== undefined) return { ok: true, updated: await sesPut(JSON.parse(body)) };
+    const d = await sesGet(q.id); if (!d) throw Object.assign(new Error("not found"), { status: 404 }); return d;
+  }
+  if (path === "/api/session_delete") { await sesDelete(q.id); return { ok: true }; }
+
+  const tf = +(q.tf || 5);
+  if (!TIMEFRAMES.includes(tf)) throw Object.assign(new Error("bad tf"), { status: 400 });
+  const sess = q.sess === "1" ? 1 : 0;
+  const cur = Math.floor(+(q.cur ?? 2 ** 40));
+  await ensureAround(cur);
+
+  if (path === "/api/bars") {
+    const limit = Math.min(+(q.limit || 3000), 20000);
+    if (tf >= 1440) await ensureYears(yearOf(cur) - 4, Y1);                              // 日 K / 週 K 多看幾年
+    if ("around" in q) await ensureYears(yearOf(Math.max(+q.around, FIRST)) - 1, Y1);   // 看歷史：載入那一年
+    if ("before" in q) {            // 往回看：需要的話載入前一年
+      const b = +q.before;
+      const A0 = agg(tf, sess);
+      const have = lb(A0.t, b);
+      if (have < limit + 50 && Y0 > YEARS[0].year) await ensureYears(Y0 - 1, Y1);
+    }
+    const [nj, part] = cut(tf, sess, cur), tk = agg(tf, sess).t;
+    let start, stop;
+    if ("before" in q) { stop = Math.min(nj, lb(tk, +q.before)); start = stop - limit; }
+    else if ("after" in q) { start = ub(tk, +q.after); stop = start + limit; }
+    else if ("around" in q) { const mid = lb(tk, +q.around); start = mid - (limit >> 1); stop = mid + (limit >> 1); if (stop > nj) { start = nj - limit; stop = nj; } }
+    else { stop = nj; start = nj - limit; }
+    stop = Math.min(stop, nj);
+    const out = rows(tf, sess, start, stop, nj, part);
+    const T = base[0], i0 = idx(0, cur);
+    // 已經是載入範圍最前面而且還有更早的年份：first 設成目前最前面，讓畫面繼續往回要
+    Object.assign(out, { contracts, first: FIRST, last: LAST, tail: stop >= nj, cur: i0 >= 0 ? T[0][i0] : null,
+      px: i0 >= 0 ? T[4][i0] : null, k_cur: i0 >= 0 ? T[5][i0] : null });
+    return out;
+  }
+
+  if (path === "/api/step") {
+    if ("to" in q) { await ensureYears(Y0, yearOf(Math.min(+q.to, LAST))); }
+    const T = base[0];
+    let t1, i, iNew;
+    if ("to" in q) { t1 = T[0]; i = idx(0, cur); iNew = ub(t1, Math.floor(+q.to)) - 1; }
+    else { t1 = base[sess][0]; i = idx(sess, cur); }
+    const n1 = t1.length;
+    if (!("to" in q)) {
+      if (q.unit === "1") iNew = i + 1;
+      else {
+        const st = agg(tf, sess).st, j = ub(st, i) - 1;
+        const endJ = j + 1 < st.length ? st[j + 1] - 1 : n1 - 1;
+        iNew = i < endJ ? endJ : (j + 2 < st.length ? st[j + 2] - 1 : n1 - 1);
+      }
+    }
+    iNew = Math.min(iNew, n1 - 1);
+    const atEnd = x => x >= n1 - 1 && Y1 >= YEARS[YEARS.length - 1].year;
+    if (iNew <= i) return { end: atEnd(i), cur, bars: null, m1: null };
+    const newCur = t1[iNew], j0 = idx(0, newCur);
+    const res = { end: atEnd(iNew), cur: newCur, px: T[4][j0], k_cur: T[5][j0] };
+    if (q.m1 === "1") {
+      const a = ub(T[0], cur), b = ub(T[0], newCur);
+      if (b - a > 200000) return { error: "too far" };
+      const sl = x => Array.from(x.subarray(a, b));
+      res.m1 = { t: sl(T[0]), o: sl(T[1]), h: sl(T[2]), l: sl(T[3]), c: sl(T[4]), k: sl(T[5]) };
+    }
+    const njOld = cut(tf, sess, cur)[0], [nj, part] = cut(tf, sess, newCur);
+    res.bars = nj - njOld > 1500 ? null : rows(tf, sess, Math.max(njOld - 1, 0), nj, nj, part);
+    return res;
+  }
+
+  if (path === "/api/nextkz") {
+    const ses = [];
+    for (const part of (q.ses || "").split(",")) { const m = part.split(":"); if (m.length === 2) { const ab = parseSes(m[1]); if (ab) ses.push([+m[0], ab[0], ab[1]]); } }
+    let ds = fdiv(cur - 18 * 3600, D) * D + 18 * 3600;
+    for (let it = 0; it < 600; it++) {
+      if (ds > LAST) break;
+      if (ds + D > base[0][0][base[0][0].length - 1] && Y1 < YEARS[YEARS.length - 1].year) await ensureYears(Y0, Y1 + 1);
+      const [T, , H, L] = base[0];
+      const i0 = idx(0, cur) + 1, de = lb(T, ds + D);
+      let best = null;
+      for (const [k, a, b] of ses) {
+        const s0 = ds + (((a - 1080) % 1440 + 1440) % 1440) * 60, s1 = s0 + (((b - a) % 1440 + 1440) % 1440) * 60;
+        const ia = lb(T, s0), ib = lb(T, s1);
+        if (ib <= ia || ib >= de) continue;
+        let hi = -Infinity, lo = Infinity;
+        for (let x = ia; x < ib; x++) { if (H[x] > hi) hi = H[x]; if (L[x] < lo) lo = L[x]; }
+        for (const [up, pz] of [[true, hi], [false, lo]]) {
+          let first = -1;
+          for (let x = ib; x < de; x++) if (up ? H[x] >= pz : L[x] <= pz) { first = x; break; }
+          if (first < 0 || first < i0) continue;
+          if (!best || first < best[0]) best = [first, k, up, pz];
+        }
+      }
+      if (best) return { t: T[best[0]], kz: best[1], up: best[2], p: best[3] };
+      ds += D;
+    }
+    return { t: null };
+  }
+
+  if (path === "/api/kz") {
+    if (tf >= 1440) return { boxes: [], lines: [], labels: [] };
+    const sessions = (q.ses || "").split(",").filter(Boolean).map(x => { const [a, b] = x.split(":"); return [+a, b]; });
+    const [nj, part] = cut(tf, sess, cur), A = agg(tf, sess);
+    const frm = +(q.from || 0), a = lb(A.t, frm - 8 * D);
+    if (nj <= a) return { boxes: [], lines: [], labels: [] };
+    const t = A.t.slice(a, nj), h = A.h.slice(a, nj), l = A.l.slice(a, nj);
+    if (part) { h[h.length - 1] = part[2]; l[l.length - 1] = part[3]; }
+    const obj = kzCompute(t, h, l, sessions, +(q.reset || 6), q.hl !== "0");
+    const to = cur + D;
+    return { boxes: obj.boxes.filter(b => b[2] >= frm && b[1] <= to), lines: obj.lines.filter(x => x[2] >= frm && x[1] <= to), labels: obj.labels.filter(x => frm <= x[1] && x[1] <= to) };
+  }
+
+  if (path === "/api/obline") {
+    const p = oblParams(q), A = agg(tf, 0), [nj, part] = cut(tf, 0, cur);
+    if (nj < 30 || !part) return { lines: [], tris: [] };
+    const icur = nj - 1, T = A.t, week = weekArr(tf, A, p.reset_hr);
+    const frm = Math.floor(+(q.from ?? cur)), ifrom = Math.min(lb(T, frm), icur);
+    const start = lb(week, week[ifrom] - 7 * D);
+    const key = tf + "|" + JSON.stringify(p);
+    let eng = oblCache.get(key);
+    if (!eng || eng.start > start || eng.next > icur) eng = new OBEngine(A, week, start, p, tf);
+    oblCache.delete(key); oblCache.set(key, eng);
+    while (oblCache.size > 4) oblCache.delete(oblCache.keys().next().value);
+    eng.advance(icur - 1);
+    const [PL, PT] = eng.partial(icur, [part[1], part[2], part[3], part[4]]);
+    const tCur = T[icur], tx = x => x <= icur ? T[x] : tCur + (x - icur) * tf * 60;
+    const lines = eng.lines.concat(PL).map(([b, x1, x2, pr]) => [b, tx(x1), tx(x2), pr]).filter(x => x[2] >= frm && x[1] <= cur + D);
+    const tris = eng.tris.concat(PT).filter(x => frm <= x[1] && x[1] <= cur + D);
+    return { lines, tris, t_cur: tCur };
+  }
+  throw Object.assign(new Error("not found"), { status: 404 });
+}
+
+// 讓頁面的 fetch("/api/...") 走這裡
+let queue = Promise.resolve();
+window.fetch = function (url, opts = {}) {
+  const u = typeof url === "string" ? url : url.url;
+  if (!u.startsWith("/api/")) return ORIG_FETCH(url, opts);
+  const [path, qs] = u.split("?");
+  const q = Object.fromEntries(new URLSearchParams(qs || ""));
+  const body = opts.method === "POST" ? (opts.body || "") : undefined;
+  const run = async () => {
+    try { return new Response(JSON.stringify(await api(path, q, body)), { status: 200, headers: { "Content-Type": "application/json" } }); }
+    catch (e) { console.error(e); return new Response(JSON.stringify({ error: e.message || String(e) }), { status: e.status || 500, headers: { "Content-Type": "application/json" } }); }
+  };
+  // 資料相關的請求排隊做（避免同時重組陣列）；存檔不用排隊
+  if (path.startsWith("/api/session")) return run();
+  const p = queue.then(run); queue = p.catch(() => {}); return p;
+};
+window.NQ_BACKEND = { ensureAround, loadYear, api, years: () => [Y0, Y1], local };
+})();
+</script>
+<script>
+const PAGE_VERSION = "replay-2026-10-24a";
+const LABEL = {1:"1m",2:"2m",3:"3m",5:"5m",10:"10m",15:"15m",30:"30m",45:"45m",60:"1H",120:"2H",240:"4H",1440:"1D",10080:"1W"};
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+const $ = id => document.getElementById(id);
+const clone = o => JSON.parse(JSON.stringify(o));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const UP = "#00b242", DOWN = "#bdbcbc", TICK = 0.25;
+const PV = { NQ: 20, MNQ: 2 };
+const WD = ["日", "一", "二", "三", "四", "五", "六"];
+let magnet = store.get("magnet", false);
+let tf = 5, adj = "0", sessOnly = false;
+let bars = [], kk = [], contracts = [], first = 0, last = 0, tail = true, loading = false;
+let INFO = null;
+let S = null;          // 目前的回測（整個存進 sessions/<id>.json）
+
+const SET_DEFAULT = { inst: "NQ", comm: 5, slip: 0, balance: 500000, qty: 1, otype: "mkt", unit: "tf", speed: 2, pauseOnFill: true, same: "sl" };
+
+// 時間工具（圖表時間 = 美東牆上時間當成 UTC 的秒數）
+const dt = t => new Date(t * 1000);
+const fT = t => dt(t).toISOString().slice(0, 16).replace("T", " ");
+const fTs = t => dt(t).toISOString().slice(5, 16).replace("T", " ");
+const wd = t => WD[dt(t).getUTCDay()];
+const money = (x, sign = true) => (x < 0 ? "-$" : sign && x > 0 ? "+$" : "$") + Math.abs(x).toLocaleString("en-US", { maximumFractionDigits: 0 });
+const fmt = x => x == null ? "—" : x.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const rnd = p => Math.round(p / TICK) * TICK;
+const cls = x => x > 0 ? "pos" : x < 0 ? "neg" : "";
+
+// ---------------- 圖表 ----------------
+const el = $("chart");
+const chart = LightweightCharts.createChart(el, {
+  autoSize: true,
+  layout: { background: { color: "#000000" }, textColor: "#d1d4dc", fontSize: innerWidth < 760 ? 10 : 12 },
+  grid: { vertLines: { visible: false }, horzLines: { visible: false } },
+  rightPriceScale: { borderColor: "#2a2e39", scaleMargins: { top: 0.08, bottom: 0.08 } },
+  timeScale: { borderColor: "#2a2e39", timeVisible: true, secondsVisible: false, rightOffset: 12, barSpacing: 7 },
+  crosshair: { mode: magnet ? 1 : 0 },
+  localization: { locale: "zh-TW", dateFormat: "yyyy-MM-dd" },
+});
+const candles = chart.addCandlestickSeries({
+  upColor: UP, downColor: DOWN, borderVisible: false, wickUpColor: UP, wickDownColor: DOWN,
+  priceFormat: { type: "price", precision: 2, minMove: 0.25 },
+});
+const rgba = (hex, op) => {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${op / 100})`;
+};
+function xOf(t) {   // 時間 → 圖表 x 座標
+  if (!bars.length) return null;
+  const sec = tf * 60;
+  let i;
+  if (t <= bars[0].time) i = (t - bars[0].time) / sec;
+  else if (t >= bars[bars.length - 1].time) i = bars.length - 1 + (t - bars[bars.length - 1].time) / sec;
+  else {
+    let lo = 0, hi = bars.length - 1;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (bars[mid].time < t) lo = mid + 1; else hi = mid; }
+    i = bars[lo].time === t ? lo : lo - 1;
+  }
+  return chart.timeScale().logicalToCoordinate(i);
+}
+function barTimeAt(t) {
+  if (!bars.length || t < bars[0].time) return null;
+  let lo = 0, hi = bars.length - 1;
+  while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (bars[mid].time <= t) lo = mid; else hi = mid - 1; }
+  return bars[lo].time;
+}
+// 同時只跑一個請求；跑的時候又有新請求 → 跑完再補跑一次（播放時也會持續更新）
+function refresher(run) {
+  let busy = false, again = false;
+  return async function go() {
+    if (busy) { again = true; return; }
+    busy = true;
+    try { await run(); } catch (e) { status("錯誤：" + e.message); }
+    busy = false;
+    if (again) { again = false; go(); }
+  };
+}
+class Prim {
+  constructor(z = "normal") { this.views = [{ zOrder: () => z, renderer: () => ({ draw: tg => this.draw(tg) }) }]; }
+  attached({ series, requestUpdate }) { this.series = series; this.requestUpdate = requestUpdate; }
+  detached() {}
+  updateAllViews() {}
+  paneViews() { return this.views; }
+  update() { this.requestUpdate && this.requestUpdate(); }
+}
+
+// ---------------- Killzones ----------------
+const KZ_DEFAULT = {
+  on: true,
+  kz: [
+    { name: "亞洲", on: true, ses: "1800-1900", col: "#b2ebf2" },
+    { name: "東京", on: true, ses: "2100-2200", col: "#d1c4e9" },
+    { name: "倫敦", on: true, ses: "0300-0400", col: "#fccbcd" },
+    { name: "NY",   on: true, ses: "0900-1000", col: "#c8e6c9" },
+  ],
+  boxOp: 33, showHl: true, lnOp: 70, lnStyle: "Solid", lnWidth: 1,
+  showDow: true, dowSize: "Normal", showWm: true, wmCol: "#b2b5be", wmSize: "Normal", reset: 6,
+};
+let KZ = Object.assign(clone(KZ_DEFAULT), store.get("kz", {}));
+const LABEL_PX = { Small: 11, Normal: 13, Large: 16, Huge: 22 };
+const WM_PX = { Small: 12, Normal: 15, Large: 20, Huge: 30 };
+class KZPrimitive {
+  constructor() {
+    this.data = { boxes: [], lines: [], labels: [] };
+    const view = (z, kind) => ({ zOrder: () => z, renderer: () => ({ draw: tg => this.draw(tg, kind) }) });
+    this.views = [view("normal", "boxes"), view("normal", "lines"), view("top", "labels")];
+  }
+  attached({ series, requestUpdate }) { this.series = series; this.requestUpdate = requestUpdate; }
+  detached() {}
+  updateAllViews() {}
+  paneViews() { return this.views; }
+  set(d) { this.data = d; this.requestUpdate && this.requestUpdate(); }
+  draw(target, kind) {
+    if (!KZ.on || tf >= 1440) return;
+    target.useMediaCoordinateSpace(({ context: ctx, mediaSize: ms }) => {
+      const y = p => this.series.priceToCoordinate(p);
+      if (kind === "boxes") {
+        for (const [k, t1, t2, top, bot] of this.data.boxes) {
+          const z = KZ.kz[k]; if (!z || !z.on) continue;
+          const x1 = xOf(t1), x2 = xOf(t2), y1 = y(top), y2 = y(bot);
+          if (x1 === null || x2 === null || y1 === null || y2 === null || x2 < 0 || x1 > ms.width) continue;
+          ctx.fillStyle = rgba(z.col, KZ.boxOp);
+          ctx.fillRect(x1, y1, Math.max(x2 - x1, 1), Math.max(y2 - y1, 1));
+        }
+      } else if (kind === "lines") {
+        if (!KZ.showHl) return;
+        const w = KZ.lnWidth;
+        ctx.lineWidth = w;
+        ctx.setLineDash(KZ.lnStyle === "Dotted" ? [w, w * 2] : KZ.lnStyle === "Dashed" ? [w * 5, w * 3] : []);
+        for (const [k, t1, t2, p] of this.data.lines) {
+          const z = KZ.kz[k]; if (!z || !z.on) continue;
+          const x1 = xOf(t1), x2 = xOf(t2), yy = y(p);
+          if (x1 === null || x2 === null || yy === null || x2 < 0 || x1 > ms.width) continue;
+          const yr = Math.round(yy) + (w % 2 ? 0.5 : 0);
+          ctx.strokeStyle = rgba(z.col, KZ.lnOp);
+          ctx.beginPath(); ctx.moveTo(x1, yr); ctx.lineTo(x2, yr); ctx.stroke();
+        }
+        ctx.setLineDash([]);
+      } else {
+        if (!KZ.showDow) return;
+        ctx.font = `${LABEL_PX[KZ.dowSize]}px -apple-system, "Segoe UI", sans-serif`;
+        ctx.textBaseline = "bottom";
+        for (const [k, t, p, text] of this.data.labels) {
+          const z = KZ.kz[k]; if (!z || !z.on) continue;
+          const x = xOf(t), yy = y(p);
+          if (x === null || yy === null || x > ms.width || x < -200) continue;
+          ctx.fillStyle = z.col;
+          ctx.fillText(text, x + 3, yy - 4);
+        }
+      }
+    });
+  }
+}
+const kzPrim = new KZPrimitive();
+candles.attachPrimitive(kzPrim);
+const refreshKZ = refresher(async () => {
+  if (!S || !bars.length || tf >= 1440 || !KZ.on) { kzPrim.set({ boxes: [], lines: [], labels: [] }); return; }
+  const ses = KZ.kz.map((z, i) => z.on ? `${i}:${z.ses}` : null).filter(Boolean).join(",");
+  const q = new URLSearchParams({ tf, adj, sess: sessOnly ? 1 : 0, from: bars[0].time, cur: S.cur, ses, reset: KZ.reset, hl: KZ.showHl ? 1 : 0 });
+  const d = await (await fetch("/api/kz?" + q)).json();
+  kzPrim.set(d);
+});
+
+// ---------------- OB Line V1.2（移植 Pine 指標）----------------
+const OB_DEFAULT = { on: true,
+  win_s: 18, win_e: 18,
+  use_ob: false, periods: 5, threshold: 0,
+  use_kzob: true, kz1: "1800-1900", kz2: "2100-2200", kz3: "0300-0400", kz4: "0900-1000",
+  use_bos: true, swing_n: 5, bos_find: "last",
+  brk_mode: "wick", lookback: 50,
+  use_cluster: true, min_body: 0.3, atr_len: 14,
+  show_rt: true, only_rt: true, pin_pct: 50, max_age: 1,
+  ln_len: 15, bull_col: "#00b242", bear_col: "#bdbcbc", ln_width: 1, ln_style: "Solid", lb_size: "Small", txt_bull: "OB+", txt_bear: "OB-",
+  reset_hr: 6 };
+// 設定項目（跟 Pine 的 input 一一對應）：[key, 標題, 類型, 選項, 說明]
+const OB_SPEC = [
+  ["h", "顯示時段（紐約時間）"],
+  ["win_s", "開始（時）", "int", [0, 23]], ["win_e", "結束（時）", "int", [1, 24], "只在這個時段內畫 OB 和回踩標記。開始與結束相同 = 全天（預設 18–18）。"],
+  ["h", "1. 連續 K 判斷（原作者邏輯）"],
+  ["use_ob", "啟用", "bool"], ["periods", "後續連續 K 線數", "int", [1, 100], "OB 之後需要連續幾根同方向的 K 線才成立"],
+  ["threshold", "最小漲跌幅 (%)", "float", [0, 100], "從 OB 收盤到最後一根連續 K 線收盤，至少要走這麼多 % 才算"],
+  ["h", "2. KZ 突破（時間皆為紐約時間）"],
+  ["use_kzob", "啟用", "bool"], ["kz1", "亞洲", "ses"], ["kz2", "東京", "ses"], ["kz3", "倫敦", "ses"], ["kz4", "NY", "ses"],
+  ["h", "3. BOS 結構突破"],
+  ["use_bos", "啟用", "bool"], ["swing_n", "擺盪點強度", "int", [1, 50], "擺盪高點 = 左右各 N 根 K 線都比它低。數字越大，抓到的結構越大、越少。擺盪點要等右邊 N 根走完才會確認。"],
+  ["bos_find", "反向 K 找法", "sel", [["last", "突破前最後一根"], ["start", "走勢起點"]], "突破前最後一根：從突破 K 往回找最近的一根反向 K。走勢起點：先找出這段走勢的最低點（向上 BOS）或最高點（向下 BOS），再取那裡的最後一根反向 K。"],
+  ["h", "突破與搜尋（2、3 共用）"],
+  ["brk_mode", "突破確認方式", "sel", [["close", "收盤價"], ["wick", "影線"]]], ["lookback", "往回找反向 K 最多幾根", "int", [1, 200]],
+  ["h", "OB 位置與大小"],
+  ["use_cluster", "連續反向 K 取起點", "bool", null, "OB 那根反向 K 前面如果還有連續同色的反向 K，就往回追到這串的第一根，用它的開盤價畫 OB。關閉 = 只用最後一根反向 K。"],
+  ["min_body", "反向 K 最小實體（ATR 倍數）", "float", [0, 10], "反向 K 的實體至少要有 ATR 的這個倍數才算數，太小的 K 視同十字線。0 = 不過濾。"],
+  ["atr_len", "ATR 週期", "int", [1, 200]],
+  ["h", "回踩收針標記"],
+  ["show_rt", "顯示標記", "bool"], ["only_rt", "只在回踩收針後才畫 OB", "bool", null, "開啟：OB 平常不顯示，第一次回踩收針時才把 OB 線和三角形一起畫出來。關閉：OB 一出現就畫線。"],
+  ["pin_pct", "收針：該方向影線佔整根 K 線至少 (%)", "float", [1, 100], "OB+ 看下影線、OB- 看上影線，佔整根 K 線（最高到最低）的比例。"],
+  ["max_age", "OB 有效時間（小時）", "float", [0.1, 1000], "從 OB 起點那根 K 線開始算，超過這個時間才被回踩的 OB 不畫標記。"],
+  ["h", "顯示"],
+  ["ln_len", "線長（K 線數）", "int", [1, 500], "從 OB 那根往右畫的長度。若回踩發生得更晚，線會延伸到回踩那根。"],
+  ["bull_col", "OB+ 顏色", "color"], ["bear_col", "OB- 顏色", "color"],
+  ["ln_width", "線寬", "sel", [[1, "1"], [2, "2"], [3, "3"], [4, "4"], [5, "5"]]],
+  ["ln_style", "線條樣式", "sel", [["Solid", "實線"], ["Dotted", "點線"], ["Dashed", "虛線"]]],
+  ["lb_size", "文字大小", "sel", [["Tiny", "Tiny"], ["Small", "Small"], ["Normal", "Normal"], ["Large", "Large"]]],
+  ["txt_bull", "OB+ 文字", "text"], ["txt_bear", "OB- 文字", "text"],
+  ["h", "每週重置（台灣時間）"],
+  ["reset_hr", "週一幾點清空重來", "int", [0, 23], "與 KZ Weekly 同步：清掉上一週等待回踩的 OB 和尚未被突破的 KZ 高低點（這裡為了能看歷史，畫過的線會保留）。"],
+];
+const OB_SERVER_KEYS = ["win_s", "win_e", "use_ob", "periods", "threshold", "use_kzob", "kz1", "kz2", "kz3", "kz4", "use_bos", "swing_n", "bos_find",
+  "brk_mode", "lookback", "use_cluster", "min_body", "atr_len", "show_rt", "only_rt", "pin_pct", "max_age", "ln_len", "reset_hr"];
+let OBS = Object.assign(clone(OB_DEFAULT), store.get("obl", {}));
+const OBL_PX = { Tiny: 9, Small: 11, Normal: 13, Large: 16 };
+class OBPrimitive extends Prim {
+  constructor() { super(); this.data = { lines: [], tris: [] }; }
+  set(d) { this.data = d && d.lines ? d : { lines: [], tris: [] }; this.update(); }
+  draw(target) {
+    if (!OBS.on) return;
+    target.useMediaCoordinateSpace(({ context: ctx, mediaSize: ms }) => {
+      const y = p => this.series.priceToCoordinate(p), w = OBS.ln_width;
+      ctx.lineWidth = w;
+      ctx.setLineDash(OBS.ln_style === "Dotted" ? [w, w * 2] : OBS.ln_style === "Dashed" ? [w * 5, w * 3] : []);
+      ctx.font = `${OBL_PX[OBS.lb_size] || 11}px -apple-system, "Segoe UI", sans-serif`;
+      ctx.textBaseline = "middle";
+      for (const [bull, t1, t2, p] of this.data.lines) {
+        const x1 = xOf(t1), x2 = xOf(t2), yy = y(p);
+        if (x1 === null || x2 === null || yy === null || x2 < 0 || x1 > ms.width) continue;
+        const col = bull ? OBS.bull_col : OBS.bear_col, yr = Math.round(yy) + (w % 2 ? 0.5 : 0);
+        ctx.strokeStyle = col; ctx.beginPath(); ctx.moveTo(x1, yr); ctx.lineTo(x2, yr); ctx.stroke();
+        ctx.fillStyle = col; ctx.fillText(bull ? OBS.txt_bull : OBS.txt_bear, x2 + 4, yy);
+      }
+      ctx.setLineDash([]);
+      if (OBS.show_rt) for (const [bull, t, p] of this.data.tris) {
+        const x = xOf(barTimeAt(t) ?? t), yy = y(p);
+        if (x === null || yy === null || x < -10 || x > ms.width + 10) continue;
+        const s = 5, y0 = bull ? yy + 6 : yy - 6;
+        ctx.fillStyle = bull ? OBS.bull_col : OBS.bear_col; ctx.beginPath();
+        if (bull) { ctx.moveTo(x, y0); ctx.lineTo(x - s, y0 + s * 1.6); ctx.lineTo(x + s, y0 + s * 1.6); }
+        else { ctx.moveTo(x, y0); ctx.lineTo(x - s, y0 - s * 1.6); ctx.lineTo(x + s, y0 - s * 1.6); }
+        ctx.closePath(); ctx.fill();
+      }
+    });
+  }
+}
+const obPrim = new OBPrimitive();
+candles.attachPrimitive(obPrim);
+const obToasted = new Set();
+const refreshOB = refresher(async () => {
+  if (!S || !bars.length || !OBS.on) { obPrim.set(null); $("obcount").textContent = ""; return; }
+  const q = new URLSearchParams({ adj, tf, from: bars[0].time, cur: S.cur });
+  for (const k of OB_SERVER_KEYS) q.set(k, typeof OBS[k] === "boolean" ? (OBS[k] ? 1 : 0) : OBS[k]);
+  const d = await (await fetch("/api/obline?" + q)).json();
+  obPrim.set(d);
+  $("obcount").textContent = `${d.lines.length} 條線、${d.tris.length} 個回踩`;
+  // 提醒（Pine 的 alert，K 棒收盤時）：剛走完的那根出現回踩收針
+  if (d.t_cur != null) for (const [bull, t, , p, c] of d.tris) {
+    const key = `${S.id}|${tf}|${t}|${bull}`;
+    if (t < d.t_cur - tf * 60 || obToasted.has(key)) continue;
+    if (t === d.t_cur && S.cur < t + tf * 60 - 60) continue;      // 這根還沒走完，先不提醒
+    obToasted.add(key);
+    toast(`${bull ? "▲ OB+ 回踩收下針（偏多）" : "▼ OB- 回踩收上針（偏空）"}｜OB ${p.toFixed(2)}｜收盤 ${c.toFixed(2)}`);
+  }
+});
+
+// ---------------- 交易畫在圖上 ----------------
+class TradePrimitive extends Prim {
+  draw(target) {
+    if (!S) return;
+    target.useMediaCoordinateSpace(({ context: ctx, mediaSize: ms }) => {
+      const y = p => this.series.priceToCoordinate(p);
+      const box = (t1, t2, entry, sl, tp, exit, pnl, sel) => {
+        const x1 = xOf(t1), x2 = xOf(t2);
+        if (x1 === null || x2 === null || x2 < -50 || x1 > ms.width) return;
+        const w = Math.max(x2 - x1, 4), ye = y(entry);
+        if (ye === null) return;
+        if (sl != null && y(sl) !== null) { ctx.fillStyle = "rgba(152,151,151,0.30)"; ctx.fillRect(x1, Math.min(ye, y(sl)), w, Math.abs(y(sl) - ye)); }
+        if (tp != null && y(tp) !== null) { ctx.fillStyle = "rgba(87,118,134,0.38)"; ctx.fillRect(x1, Math.min(ye, y(tp)), w, Math.abs(y(tp) - ye)); }
+        ctx.strokeStyle = sel ? "#fff" : "rgba(209,212,220,0.8)"; ctx.lineWidth = sel ? 2 : 1;
+        ctx.beginPath(); ctx.moveTo(x1, Math.round(ye) + 0.5); ctx.lineTo(x1 + w, Math.round(ye) + 0.5); ctx.stroke();
+        if (exit != null && y(exit) !== null) {
+          ctx.strokeStyle = pnl > 0 ? "#26a69a" : "#f23645"; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
+          ctx.beginPath(); ctx.moveTo(x1, ye); ctx.lineTo(x2, y(exit)); ctx.stroke(); ctx.setLineDash([]);
+        }
+      };
+      for (const tr of S.trades) box(tr.t_in, tr.t_out, tr.p_in, tr.sl_last !== undefined ? tr.sl_last : tr.sl0, tr.tp_last !== undefined ? tr.tp_last : tr.tp0, tr.p_out, tr.pnl, tr.id === selTrade);
+      const p = S.pos;
+      if (p) box(p.t_in, Math.max(S.cur, p.t_in), p.entry, p.sl, p.tp, null, 0, false);
+    });
+  }
+}
+const trPrim = new TradePrimitive();
+candles.attachPrimitive(trPrim);
+let selTrade = null;
+function setTradeMarkers() {
+  if (!S) { candles.setMarkers([]); return; }
+  const mk = [];
+  const add = (t, m) => { const bt = barTimeAt(t); if (bt !== null) mk.push({ time: bt, ...m }); };
+  for (const tr of S.trades) {
+    const L = tr.dir > 0;
+    add(tr.t_in, { position: L ? "belowBar" : "aboveBar", color: L ? "#2962ff" : "#ff9800", shape: L ? "arrowUp" : "arrowDown", text: (L ? "多" : "空") + (tr.qty > 1 ? tr.qty : "") });
+    add(tr.t_out, { position: L ? "aboveBar" : "belowBar", color: tr.pnl > 0 ? "#26a69a" : "#f23645", shape: "circle",
+      text: money(Math.round(tr.pnl)) + (tr.reason === "停利" || tr.reason === "停損" ? "" : " " + tr.reason) });
+  }
+  if (S.pos) { const L = S.pos.dir > 0; add(S.pos.t_in, { position: L ? "belowBar" : "aboveBar", color: L ? "#2962ff" : "#ff9800", shape: L ? "arrowUp" : "arrowDown", text: L ? "多" : "空" }); }
+  mk.sort((a, b) => a.time - b.time);
+  candles.setMarkers(mk);
+}
+// 持倉／掛單的價格線（右邊價格軸會標價），可以拖曳；TP／SL 線上顯示 RR
+let posLines = [];
+function rrText(entry, sl, tp) {
+  if (sl == null || tp == null) return "";
+  const risk = Math.abs(entry - sl);
+  return risk > 0 ? ` · RR ${(Math.abs(tp - entry) / risk).toFixed(2)}` : "";
+}
+function slTpTitle(kind, entry, px, dir, qty, other) {
+  const pts = (px - entry) * dir, usd = pts * PV[S.settings.inst] * qty;
+  const rr = kind === "TP" ? rrText(entry, other, px) : rrText(entry, px, other);
+  return `${kind} ${pts >= 0 ? "+" : ""}${pts.toFixed(2)}點 ${money(Math.round(usd))}${rr}`;
+}
+function syncLines() {
+  for (const l of posLines) candles.removePriceLine(l);
+  posLines = [];
+  if (!S) { hdlPrim.update(); return; }
+  const pv = PV[S.settings.inst], line = (price, color, title, style = 0, w = 1) =>
+    posLines.push(candles.createPriceLine({ price, color, lineWidth: w, lineStyle: style, axisLabelVisible: true, title }));
+  const p = S.pos;
+  if (p) {
+    const upl = (S.px - p.entry) * p.dir * pv * p.qty;
+    line(p.entry, "#9598a1", `${p.dir > 0 ? "多" : "空"} ${p.qty}口 ${money(Math.round(upl))}`, 0, 1);
+    if (p.sl != null) line(p.sl, "#f23645", slTpTitle("SL", p.entry, p.sl, p.dir, p.qty, p.tp), 0, 2);
+    if (p.tp != null) line(p.tp, "#26a69a", slTpTitle("TP", p.entry, p.tp, p.dir, p.qty, p.sl), 0, 2);
+  }
+  const o = S.order;
+  if (o) {
+    line(o.price, "#2962ff", `${o.dir > 0 ? "買進" : "賣出"}${o.kind === "limit" ? "限價" : "停損單"} ${o.qty}口`, 2, 2);
+    if (o.sl != null) line(o.sl, "rgba(242,54,69,.75)", slTpTitle("SL", o.price, o.sl, o.dir, o.qty, o.tp), 2, 1);
+    if (o.tp != null) line(o.tp, "rgba(38,166,154,.75)", slTpTitle("TP", o.price, o.tp, o.dir, o.qty, o.sl), 2, 1);
+  }
+  hdlPrim.update();
+}
+// 持倉線／掛單線右邊的小按鈕：拖「TP」「SL」拉出停利停損線；TP／SL 線上的「✕」移除
+const HW = 30, HH = 18;
+let HR = matchMedia("(pointer: coarse)").matches ? 2.2 : 1;   // 觸控時點擊範圍放大
+function handles() {
+  if (!S || !bars.length) return [];
+  const W = chart.timeScale().width(), out = [];
+  const add = (target, base, obj) => {
+    const yb = yOf(base); if (yb === null) return;
+    const xs = { tp: W - 300, sl: W - 300 + HW + 4 };
+    for (const which of ["tp", "sl"]) {
+      if (obj[which] == null) out.push({ kind: "new", target, which, x: xs[which], y: yb - HH / 2 });
+      else { const yy = yOf(obj[which]); if (yy !== null) out.push({ kind: "del", target, which, x: xs.tp, y: yy - HH / 2 }); }
+    }
+  };
+  if (S.pos) add("pos", S.pos.entry, S.pos);
+  if (S.order) add("ord", S.order.price, S.order);
+  return out;
+}
+function hitHandle(x, y) {
+  const pd = (HR - 1) * 6; for (const h of handles()) if (x >= h.x - pd && x <= h.x + HW + pd && y >= h.y - pd && y <= h.y + HH + pd) return h;
+  return null;
+}
+class HandlePrimitive extends Prim {
+  constructor() { super("top"); }
+  draw(target) {
+    target.useMediaCoordinateSpace(({ context: ctx }) => {
+      ctx.font = `bold 11px -apple-system, "Segoe UI", sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      for (const h of handles()) {
+        const col = h.kind === "del" ? "#787b86" : h.which === "tp" ? "#26a69a" : "#f23645";
+        ctx.fillStyle = "#131722"; ctx.strokeStyle = col; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.roundRect(h.x + 0.5, h.y + 0.5, HW, HH, 3); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = h.kind === "del" ? "#d1d4dc" : col;
+        ctx.fillText(h.kind === "del" ? "✕" : h.which.toUpperCase(), h.x + HW / 2 + 0.5, h.y + HH / 2 + 1);
+      }
+      ctx.textAlign = "start";
+    });
+  }
+}
+const hdlPrim = new HandlePrimitive();
+candles.attachPrimitive(hdlPrim);
+function setSlTp(target, which, price, final = true) {   // 設定持倉／掛單的停損停利；第一次設好的停損停利記為「原始」(算 R 用)
+  const o = target === "pos" ? S.pos : S.order; if (!o) return;
+  o[which] = price;
+  if (final && target === "pos" && price != null && o[which + "0"] == null) o[which + "0"] = price;
+}
+
+// ---------------- 繪圖工具（每個回測各自一份）----------------
+const DRAW_COL = "#e0e3eb";   // 淺白色
+const DRAW_DEFAULT = { hline: { color: DRAW_COL, width: 1 }, hseg: { color: DRAW_COL, width: 1 }, rect: { color: DRAW_COL, width: 1 } };
+const OLD_DRAW_COLS = ["#2962ff", "#9c27b0"];   // 舊版預設色 → 換成淺白色
+const DRAW_NAME = { hline: "水平線", hseg: "水平線段", rect: "矩形", long: "多頭部位", short: "空頭部位" };
+const PT_SL = "#989797", PT_TP = "#577686";       // 多空部位工具：停損 / 停利顏色
+const isPosTool = d => d && (d.type === "long" || d.type === "short");
+let drawings = [], selected = null, tool = "cursor", drag = null, guide = null;   // guide：拖曳時的對齊虛線
+function setGuide(g) {          // 拖曳時用自己的虛線，暫時藏掉圖表十字線（拖曳中它不會跟著動）
+  if (!guide && g) chart.applyOptions({ crosshair: { vertLine: { visible: false, labelVisible: false }, horzLine: { visible: false, labelVisible: false } } });
+  if (guide && !g) chart.applyOptions({ crosshair: { vertLine: { visible: true, labelVisible: true }, horzLine: { visible: true, labelVisible: true } } });
+  guide = g; drawPrim.update();
+}
+function loadDrawings() {
+  for (const d of drawings) if (d.pl) candles.removePriceLine(d.pl);
+  drawings = ((S && S.drawings) || []).map(d => ({ ...d })).filter(d => d && DRAW_NAME[d.type]);
+  for (const d of drawings) if (OLD_DRAW_COLS.includes(String(d.color).toLowerCase())) d.color = DRAW_COL;
+  selected = null;
+  for (const d of drawings) if (d.type === "hline") makePriceLine(d);
+  showProps(); drawPrim.update();
+}
+function saveDrawings() {
+  if (!S) return;
+  S.drawings = drawings.map(({ pl, ...d }) => d);
+  saveSession();
+}
+function makePriceLine(d) {
+  d.pl = candles.createPriceLine({ price: d.p, color: d.color, lineWidth: d.width, lineStyle: 0, axisLabelVisible: true, title: "" });
+}
+function refreshLine(d) {
+  d.pl.applyOptions({ price: d.p, color: d.color, lineWidth: d === selected ? Math.min(d.width + 1, 4) : d.width });
+}
+function timeAtX(x) {
+  if (!bars.length) return null;
+  const lg = chart.timeScale().coordinateToLogical(x);
+  if (lg === null) return null;
+  const i = Math.round(lg), n = bars.length;
+  if (i < 0) return bars[0].time + i * tf * 60;
+  if (i >= n) return bars[n - 1].time + (i - n + 1) * tf * 60;
+  return bars[i].time;
+}
+const priceAtY = y => { const p = candles.coordinateToPrice(y); return p === null ? null : rnd(p); };
+const yOf = p => candles.priceToCoordinate(p);
+class DrawPrimitive extends Prim {
+  constructor() { super("top"); }
+  draw(target) {
+    target.useMediaCoordinateSpace(({ context: ctx }) => {
+      for (const d of drawings) {
+        if (d.type === "hseg") {
+          const s = segPx(d); if (!s) continue;
+          const yr = Math.round(s.y) + (d.width % 2 ? 0.5 : 0);
+          ctx.strokeStyle = d.color; ctx.lineWidth = d.width;
+          ctx.beginPath(); ctx.moveTo(s.x1, yr); ctx.lineTo(s.x2, yr); ctx.stroke();
+          if (d === selected) { handle(ctx, s.x1, s.y); handle(ctx, s.x2, s.y); }
+          continue;
+        }
+        if (isPosTool(d)) { drawPosTool(ctx, d); continue; }
+        if (d.type !== "rect") continue;
+        const r = rectPx(d); if (!r) continue;
+        ctx.fillStyle = rgba(d.color, 20);
+        ctx.fillRect(r.x, r.y, r.w, r.h);
+        ctx.strokeStyle = d.color; ctx.lineWidth = d.width;
+        const o = d.width % 2 ? 0.5 : 0;
+        ctx.strokeRect(Math.round(r.x) + o, Math.round(r.y) + o, Math.round(r.w), Math.round(r.h));
+        if (d === selected) for (const [hx, hy] of corners(r)) handle(ctx, hx, hy);
+      }
+      if (guide) {                               // 拖曳中：十字對齊虛線 + 價格
+        const W = chart.timeScale().width(), H = ctx.canvas.height / (window.devicePixelRatio || 1);
+        ctx.save(); ctx.strokeStyle = "rgba(224,227,235,.75)"; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+        if (guide.y != null) { const yy = Math.round(guide.y) + .5; ctx.beginPath(); ctx.moveTo(0, yy); ctx.lineTo(W, yy); ctx.stroke(); }
+        if (guide.x != null) { const xx = Math.round(guide.x) + .5; ctx.beginPath(); ctx.moveTo(xx, 0); ctx.lineTo(xx, H); ctx.stroke(); }
+        ctx.restore();
+        if (guide.y != null && guide.p != null) {
+          const txt = guide.p.toFixed(2); ctx.font = '11px -apple-system, "Segoe UI", sans-serif';
+          const w = ctx.measureText(txt).width + 8;
+          ctx.fillStyle = "#5d606b"; ctx.fillRect(W - w - 2, guide.y - 9, w, 18);
+          ctx.fillStyle = "#fff"; ctx.textBaseline = "middle"; ctx.fillText(txt, W - w + 2, guide.y);
+        }
+      }
+      const s = selected;
+      if (s && s.type === "hline") {
+        const yy = yOf(s.p);
+        if (yy !== null) { const w = chart.timeScale().width(); handle(ctx, w * 0.25, yy); handle(ctx, w * 0.75, yy); }
+      }
+    });
+  }
+}
+function posPx(d) {
+  const x1 = xOf(d.t1), x2 = xOf(d.t2), ye = yOf(d.p), yt = yOf(d.tp), ys = yOf(d.sl);
+  if ([x1, x2, ye, yt, ys].some(v => v === null)) return null;
+  return { x1: Math.min(x1, x2), x2: Math.max(x1, x2), ye, yt, ys };
+}
+function posInfo(d) {
+  const pv = PV[(S && S.settings.inst) || "NQ"];
+  const rp = Math.abs(d.tp - d.p), sp = Math.abs(d.p - d.sl);
+  const risk = d.risk ?? store.get("ptRisk", 1000);
+  const qty = sp > 0 ? Math.floor(risk / (sp * pv) + 1e-9) : 0;     // 固定風險 → 口數（無條件捨去）
+  return { qty, risk, rp, sp, rr: sp > 0 ? rp / sp : 0, tpUsd: rp * pv * qty, slUsd: sp * pv * qty };
+}
+function tagText(ctx, lines, x, y, col, below) {   // TradingView 風格：圓角色塊、白字、可多行；below=true 往下長
+  ctx.font = '12px -apple-system, "Segoe UI", "Microsoft JhengHei", sans-serif';
+  const lh = 16, pad = 6, w = Math.max(...lines.map(t => ctx.measureText(t).width)) + pad * 2, h = lines.length * lh + pad;
+  const top = below === undefined ? y - h / 2 : below ? y : y - h;
+  ctx.fillStyle = col; ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(x - w / 2, top, w, h, 3); else ctx.rect(x - w / 2, top, w, h);
+  ctx.fill();
+  ctx.fillStyle = "#fff"; ctx.textBaseline = "middle"; ctx.textAlign = "center";
+  lines.forEach((t, i) => ctx.fillText(t, x, top + pad / 2 + lh * i + lh / 2));
+  ctx.textAlign = "left";
+}
+function drawPosTool(ctx, d) {
+  const r = posPx(d); if (!r) return;
+  const w = Math.max(r.x2 - r.x1, 1), sel = d === selected;
+  ctx.fillStyle = rgba(PT_TP, 40); ctx.fillRect(r.x1, Math.min(r.ye, r.yt), w, Math.abs(r.yt - r.ye));
+  ctx.fillStyle = rgba(PT_SL, 40); ctx.fillRect(r.x1, Math.min(r.ye, r.ys), w, Math.abs(r.ys - r.ye));
+  ctx.lineWidth = 1;
+  const hl = (yy, col) => { ctx.strokeStyle = col; ctx.beginPath(); ctx.moveTo(r.x1, Math.round(yy) + .5); ctx.lineTo(r.x2, Math.round(yy) + .5); ctx.stroke(); };
+  hl(r.yt, PT_TP); hl(r.ys, PT_SL); hl(r.ye, "#e0e3eb");
+  const I = posInfo(d), cx = r.x1 + w / 2, L = d.type === "long", f = v => v.toFixed(2);
+  const pct = v => (v / d.p * 100).toFixed(2), tk = v => Math.round(v / TICK);
+  const amt = v => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  tagText(ctx, [`目標: ${f(I.rp)} (${pct(I.rp)}%) ${tk(I.rp)}, 金額: ${amt(I.tpUsd)}`], cx, r.yt + (L ? -4 : 4), PT_TP, !L);
+  tagText(ctx, [`停損: ${f(I.sp)} (${pct(I.sp)}%) ${tk(I.sp)}, 金額: ${amt(I.slUsd)}`], cx, r.ys + (L ? 4 : -4), PT_SL, L);
+  const mid = I.qty > 0 ? [`數量: ${I.qty}, 風險報酬比: ${I.rr.toFixed(2)}`] : [`數量: 0（固定風險 $${I.risk} 不夠 1 口）`, `風險報酬比: ${I.rr.toFixed(2)}`];
+  tagText(ctx, mid, cx, r.ye, I.qty > 0 ? "#5d606b" : "#b8424c");
+  if (sel) { handle(ctx, r.x1, r.yt); handle(ctx, r.x1, r.ys); handle(ctx, r.x1, r.ye); handle(ctx, r.x2, r.ye); }
+}
+function handle(ctx, x, y) {
+  ctx.fillStyle = "#000"; ctx.strokeStyle = "#2962ff"; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(x, y, 4.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+}
+function rectPx(d) {
+  const x1 = xOf(d.t1), x2 = xOf(d.t2), y1 = yOf(d.p1), y2 = yOf(d.p2);
+  if (x1 === null || x2 === null || y1 === null || y2 === null) return null;
+  return { x: Math.min(x1, x2), y: Math.min(y1, y2), w: Math.abs(x2 - x1), h: Math.abs(y2 - y1), x1, x2, y1, y2 };
+}
+const corners = r => [[r.x1, r.y1], [r.x2, r.y1], [r.x1, r.y2], [r.x2, r.y2]];
+function segPx(d) {
+  const x1 = xOf(d.t1), x2 = xOf(d.t2), y = yOf(d.p);
+  return x1 === null || x2 === null || y === null ? null : { x1, x2, y };
+}
+const drawPrim = new DrawPrimitive();
+candles.attachPrimitive(drawPrim);
+function hitTest(x, y) {
+  for (let i = drawings.length - 1; i >= 0; i--) {
+    const d = drawings[i];
+    if (isPosTool(d)) {
+      const r = posPx(d); if (!r) continue;
+      if (Math.hypot(x - r.x1, y - r.yt) < 8 * HR) return { d, part: "ptp" };
+      if (Math.hypot(x - r.x1, y - r.ys) < 8 * HR) return { d, part: "psl" };
+      if (Math.hypot(x - r.x1, y - r.ye) < 8 * HR) return { d, part: "pen" };
+      if (Math.hypot(x - r.x2, y - r.ye) < 8 * HR) return { d, part: "pw" };
+      const inX = x >= r.x1 - 4 * HR && x <= r.x2 + 4;
+      if (inX && Math.abs(y - r.yt) < 5 * HR) return { d, part: "ptp" };
+      if (inX && Math.abs(y - r.ys) < 5 * HR) return { d, part: "psl" };
+      if (inX && y >= Math.min(r.yt, r.ys) && y <= Math.max(r.yt, r.ys)) return { d, part: "move" };
+      continue;
+    }
+    if (d.type === "rect") {
+      const r = rectPx(d); if (!r) continue;
+      const cs = corners(r);
+      for (let c = 0; c < 4; c++) if (Math.hypot(x - cs[c][0], y - cs[c][1]) < 8 * HR) return { d, part: "c" + c };
+      if (x >= r.x - 4 * HR && x <= r.x + r.w + 4 * HR && y >= r.y - 4 * HR && y <= r.y + r.h + 4 * HR) return { d, part: "move" };
+    } else if (d.type === "hseg") {
+      const s = segPx(d); if (!s) continue;
+      if (Math.hypot(x - s.x1, y - s.y) < 8 * HR) return { d, part: "e0" };
+      if (Math.hypot(x - s.x2, y - s.y) < 8 * HR) return { d, part: "e1" };
+      if (Math.abs(y - s.y) < 6 && x >= Math.min(s.x1, s.x2) - 4 * HR && x <= Math.max(s.x1, s.x2) + 4 * HR) return { d, part: "move" };
+    } else {
+      const yy = yOf(d.p);
+      if (yy !== null && Math.abs(y - yy) < 6 * HR) return { d, part: "hline" };
+    }
+  }
+  return null;
+}
+// 持倉停損／停利、掛單線的拖曳判斷
+function hitTrade(y) {
+  if (!S) return null;
+  const near = p => p != null && yOf(p) !== null && Math.abs(y - yOf(p)) < 6 * HR;
+  if (S.pos && near(S.pos.sl)) return { target: "pos", which: "sl" };
+  if (S.pos && near(S.pos.tp)) return { target: "pos", which: "tp" };
+  if (S.order && near(S.order.sl)) return { target: "ord", which: "sl" };
+  if (S.order && near(S.order.tp)) return { target: "ord", which: "tp" };
+  if (S.order && near(S.order.price)) return { target: "ord", which: "price" };
+  return null;
+}
+function select(d) {
+  const prev = selected; selected = d;
+  if (prev && prev.type === "hline") refreshLine(prev);
+  if (d && d.type === "hline") refreshLine(d);
+  showProps(); drawPrim.update();
+}
+function showProps() {
+  const p = $("props");
+  if (!selected) { p.style.display = "none"; return; }
+  p.style.display = "flex";
+  $("p_kind").textContent = DRAW_NAME[selected.type];
+  const pt = isPosTool(selected);
+  $("p_col").style.display = $("p_w").style.display = pt ? "none" : "";
+  if (!pt) { $("p_col").value = selected.color; $("p_w").value = selected.width; }
+  $("p_riskw").style.display = pt ? "inline-flex" : "none";
+  if (pt) { $("p_risk").value = selected.risk ?? store.get("ptRisk", 1000); $("p_qty").textContent = `→ ${posInfo(selected).qty} 口`; }
+}
+function removeDrawing(d) {
+  if (d.pl) candles.removePriceLine(d.pl);
+  drawings = drawings.filter(x => x !== d);
+  if (selected === d) selected = null;
+  saveDrawings(); showProps(); drawPrim.update();
+}
+function setTool(t) {
+  if (t !== "cursor") $("app").classList.remove("topen");
+  tool = t;
+  for (const id of ["cursor", "hline", "hseg", "rect", "long", "short"]) $("t_" + id).classList.toggle("on", id === t);
+  $("wrap").classList.toggle("drawing", t !== "cursor");
+  if (t !== "cursor") select(null);
+}
+for (const ev of ["touchstart", "touchmove"]) el.addEventListener(ev, e => { if (drag) { e.stopPropagation(); e.preventDefault(); } }, { capture: true, passive: false });
+const pos = e => { const r = el.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+const inPane = x => x >= 0 && x <= chart.timeScale().width();
+el.addEventListener("pointerdown", e => {
+  if (e.pointerType === "touch") HR = 2.2; else if (e.pointerType === "mouse") HR = 1;
+  if (e.button !== 0 || !S) return;
+  const [x, y] = pos(e);
+  if (!inPane(x)) return;
+  const t = timeAtX(x), p = priceAtY(y);
+  if (t === null || p === null) return;
+  if (tool === "cursor") {
+    const hd = hitHandle(x, y);
+    if (hd && hd.kind === "del") { setSlTp(hd.target, hd.which, null); afterTrade(); e.stopPropagation(); e.preventDefault(); return; }
+    const ht = hd || hitTrade(y);
+    if (ht) { drag = { mode: "trade", target: ht.target, which: ht.which }; e.stopPropagation(); e.preventDefault(); return; }
+  }
+  if (tool === "hline") {
+    const d = { type: "hline", p, ...DRAW_DEFAULT.hline };
+    drawings.push(d); makePriceLine(d); saveDrawings(); setTool("cursor"); select(d);
+    e.stopPropagation(); e.preventDefault(); return;
+  }
+  if (tool === "long" || tool === "short") {
+    const L = tool === "long", lg = chart.timeScale().coordinateToLogical(x);
+    const t2 = timeAtX(chart.timeScale().logicalToCoordinate(Math.round(lg) + 30)) ?? t;
+    let risk = Math.abs(rnd((priceAtY(y + 40) ?? p) - p)); if (risk < TICK * 4) risk = TICK * 4;
+    const d = { type: tool, t1: t, t2, p, sl: rnd(L ? p - risk : p + risk), tp: rnd(L ? p + 2 * risk : p - 2 * risk), risk: store.get("ptRisk", 1000) };
+    drawings.push(d); saveDrawings(); setTool("cursor"); select(d);
+    e.stopPropagation(); e.preventDefault(); return;
+  }
+  if (tool === "rect" || tool === "hseg") {
+    if (drag && drag.mode === "new") { finishNewRect(); e.stopPropagation(); e.preventDefault(); return; }
+    const d = tool === "rect"
+      ? { type: "rect", t1: t, p1: p, t2: t, p2: p, ...DRAW_DEFAULT.rect }
+      : { type: "hseg", t1: t, t2: t, p, ...DRAW_DEFAULT.hseg };
+    drawings.push(d); selected = d;
+    drag = { mode: "new", d, x0: x, y0: y, moved: false };
+    e.stopPropagation(); e.preventDefault(); return;
+  }
+  const h = hitTest(x, y);
+  if (!h) { if (selected) select(null); return; }
+  select(h.d);
+  drag = { mode: h.part, d: h.d, t0: t, p0: p, x0: x, y0: y, orig: { ...h.d, pl: undefined } };
+  e.stopPropagation(); e.preventDefault();
+}, true);
+el.addEventListener("pointermove", e => {
+  const [x, y] = pos(e);
+  if (!drag) {
+    if (tool === "cursor") {
+      const hd = inPane(x) ? hitHandle(x, y) : null;
+      const h = hd ? null : inPane(x) ? hitTest(x, y) : null, ht = !hd && inPane(x) ? hitTrade(y) : null;
+      const w = $("wrap");
+      w.classList.toggle("ptr", !!hd);
+      w.classList.toggle("grab", !!h && h.part === "move");
+      w.classList.toggle("resize", !!h && h.part[0] === "c");
+      w.classList.toggle("ns", !!ht || (!!h && ["hline", "ptp", "psl", "pen"].includes(h.part)));
+      w.classList.toggle("ew", !!h && (h.part[0] === "e" || h.part === "pw"));
+    }
+    return;
+  }
+  e.stopPropagation();
+  const t = timeAtX(x), p = priceAtY(y);
+  if (t === null || p === null) return;
+  if (drag.mode === "trade") {
+    const o = drag.target === "pos" ? S.pos : S.order;
+    if (!o) { drag = null; return; }
+    if (drag.which === "price") {             // 拖掛單線：停損停利跟著一起移動
+      const dp = p - o.price;
+      if (o.sl != null) o.sl = rnd(o.sl + dp);
+      if (o.tp != null) o.tp = rnd(o.tp + dp);
+      o.price = p; o.kind = orderKind(o.dir, p);
+    } else setSlTp(drag.target, drag.which, p, false);
+    setGuide({ y: yOf(p), p: null, x: null });      // TP/SL 線本身已經有價格標籤，不再畫灰色價格
+    syncLines(); trPrim.update(); renderLive(); return;
+  }
+  const d = drag.d, o = drag.orig;
+  if (Math.hypot(x - drag.x0, y - drag.y0) > 4) drag.moved = true;
+  if (drag.mode === "new") { d.t2 = t; if (d.type === "rect") d.p2 = p; }
+  else if (drag.mode === "hline") { d.p = p; refreshLine(d); }
+  else if (isPosTool(d) && drag.mode !== "move") {
+    const L = d.type === "long";
+    if (drag.mode === "ptp") d.tp = L ? Math.max(p, d.p + TICK) : Math.min(p, d.p - TICK);
+    else if (drag.mode === "psl") d.sl = L ? Math.min(p, d.p - TICK) : Math.max(p, d.p + TICK);
+    else if (drag.mode === "pen") { const lo = Math.min(d.sl, d.tp) + TICK, hi = Math.max(d.sl, d.tp) - TICK; d.p = Math.min(hi, Math.max(lo, p)); }
+    else if (drag.mode === "pw") { if (t > d.t1) d.t2 = t; }
+  }
+  else if (drag.mode === "move") {
+    const dp = p - drag.p0;
+    const l0 = chart.timeScale().coordinateToLogical(drag.x0), l1 = chart.timeScale().coordinateToLogical(x);
+    const shift = Math.round(l1) - Math.round(l0);
+    d.t1 = shiftTime(o.t1, shift); d.t2 = shiftTime(o.t2, shift);
+    if (d.type === "hseg") d.p = o.p + dp;
+    else if (isPosTool(d)) { d.p = rnd(o.p + dp); d.tp = rnd(o.tp + dp); d.sl = rnd(o.sl + dp); }
+    else { d.p1 = o.p1 + dp; d.p2 = o.p2 + dp; }
+  } else if (drag.mode[0] === "e") {
+    if (drag.mode === "e0") d.t1 = t; else d.t2 = t;
+  } else {
+    const c = +drag.mode[1];
+    if (c === 0 || c === 2) d.t1 = t; else d.t2 = t;
+    if (c === 0 || c === 1) d.p1 = p; else d.p2 = p;
+  }
+  if (isPosTool(d) && d === selected) $("p_qty").textContent = `→ ${posInfo(d).qty} 口`;
+  {                                              // 對齊虛線：跟著被拖的那個價位／時間
+    let gp = p;
+    if (isPosTool(d)) gp = drag.mode === "ptp" ? d.tp : drag.mode === "psl" ? d.sl : d.p;
+    else if (d.type === "hseg" || d.type === "hline") gp = d.p;
+    const gx = xOf(t);
+    setGuide({ y: yOf(gp), p: gp, x: d.type === "hline" || ["ptp", "psl", "pen"].includes(drag.mode) ? null : gx });
+  }
+  drawPrim.update();
+}, true);
+function shiftTime(t, n) {
+  const x = xOf(t); if (x === null) return t;
+  const lg = chart.timeScale().coordinateToLogical(x);
+  return timeAtX(chart.timeScale().logicalToCoordinate(Math.round(lg) + n)) ?? t;
+}
+function finishNewRect() {
+  const d = drag.d; drag = null;
+  if (d.t1 === d.t2 || (d.type === "rect" && d.p1 === d.p2)) { removeDrawing(d); return; }
+  saveDrawings(); setTool("cursor"); select(d);
+}
+window.addEventListener("pointercancel", () => { if (drag) window.dispatchEvent(new Event("pointerup")); }, true);
+window.addEventListener("pointerup", () => {
+  if (guide) setGuide(null);
+  if (!drag) return;
+  if (drag.mode === "trade") {        // 放開滑鼠才算設定完成
+    const o = drag.target === "pos" ? S.pos : S.order;
+    if (o && drag.which !== "price") setSlTp(drag.target, drag.which, o[drag.which]);
+    drag = null; syncLines(); renderLive(); saveSession(); return;
+  }
+  if (drag.mode === "new") { if (drag.moved) finishNewRect(); return; }
+  drag = null; saveDrawings();
+}, true);
+$("t_cursor").onclick = () => { if (drag && drag.mode === "new") removeDrawing(drag.d); drag = null; setTool("cursor"); };
+$("t_hline").onclick = () => setTool("hline");
+$("t_rect").onclick = () => setTool("rect");
+$("t_hseg").onclick = () => setTool("hseg");
+$("t_long").onclick = () => setTool("long");
+$("t_short").onclick = () => setTool("short");
+let armed = {};
+function twice(key, msg) {            // 按兩下才執行（不用瀏覽器 confirm 視窗）
+  const now = Date.now();
+  if (now - (armed[key] || 0) < 2500) { armed[key] = 0; return true; }
+  armed[key] = now; toast(msg); return false;
+}
+$("t_clear").onclick = () => {
+  if (!drawings.length || !twice("clear", `再按一次垃圾桶，就會刪除全部 ${drawings.length} 個繪圖`)) return;
+  for (const d of [...drawings]) removeDrawing(d);
+};
+$("p_col").oninput = e => { selected.color = e.target.value; if (selected.pl) refreshLine(selected); saveDrawings(); drawPrim.update(); };
+$("p_w").onchange = e => { selected.width = +e.target.value; if (selected.pl) refreshLine(selected); saveDrawings(); drawPrim.update(); };
+$("p_del").onclick = () => selected && removeDrawing(selected);
+$("p_risk").oninput = e => {
+  if (!isPosTool(selected)) return;
+  const v = Math.max(1, +e.target.value || 0); selected.risk = v; store.set("ptRisk", v);
+  $("p_qty").textContent = `→ ${posInfo(selected).qty} 口`; drawPrim.update();
+};
+$("p_risk").onchange = () => saveDrawings();
+
+// ---------------- 資料載入（永遠只到游標為止）----------------
+function toRows(d) {
+  const b = [];
+  for (let i = 0; i < d.t.length; i++) b.push({ time: d.t[i], open: d.o[i], high: d.h[i], low: d.l[i], close: d.c[i] });
+  return [b, d.k];
+}
+async function fetchBars(params) {
+  const q = new URLSearchParams({ tf, adj, sess: sessOnly ? 1 : 0, cur: S.cur, limit: 3000, ...params });
+  const r = await fetch("/api/bars?" + q);
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+function afterData() {
+  status(); refreshKZ(); refreshOB(); setTradeMarkers(); trPrim.update(); drawPrim.update();
+}
+async function load(params = {}) {
+  if (!S) return;
+  loading = true; status("載入中（第一次開某一年要下載約 1MB）...");
+  try {
+    const d = await fetchBars(params);
+    contracts = d.contracts; first = d.first; last = d.last; tail = d.tail;
+    if (!params.around && !params.before && d.cur != null) { S.cur = d.cur; S.px = d.px; S.k = d.k_cur; }
+    [bars, kk] = toRows(d);
+    kzPrim.set({ boxes: [], lines: [], labels: [] });
+    candles.setData(bars);
+    if (params.around) {
+      const i = bars.findIndex(b => b.time >= params.around);
+      const c = i < 0 ? bars.length - 1 : i;
+      chart.timeScale().setVisibleLogicalRange({ from: c - 120, to: c + 60 });
+    } else {
+      chart.timeScale().setVisibleLogicalRange({ from: bars.length - (innerWidth < 760 ? 70 : 150), to: bars.length + (innerWidth < 760 ? 6 : 12) });
+    }
+    afterData(); legend(); watermark(); renderLive(); syncLines();
+  } catch (e) { status("錯誤：" + e.message); }
+  loading = false;
+}
+async function more(dir) {
+  if (loading || !bars.length || !S) return;
+  if (dir < 0 && bars[0].time <= first) return;
+  if (dir > 0 && tail) return;
+  loading = true;
+  try {
+    const d = await fetchBars(dir < 0 ? { before: bars[0].time } : { after: bars[bars.length - 1].time });
+    const [b, k] = toRows(d);
+    if (b.length) {
+      const lr = chart.timeScale().getVisibleLogicalRange();
+      if (dir < 0) { bars = b.concat(bars); kk = k.concat(kk); }
+      else { bars = bars.concat(b); kk = kk.concat(k); tail = d.tail; }
+      candles.setData(bars);
+      if (lr) { const sh = dir < 0 ? b.length : 0; chart.timeScale().setVisibleLogicalRange({ from: lr.from + sh, to: lr.to + sh }); }
+      afterData();
+    } else if (dir > 0) tail = true;
+  } catch (e) { status("錯誤：" + e.message); }
+  loading = false;
+}
+chart.timeScale().subscribeVisibleLogicalRangeChange(r => {
+  if (!r || !S) return;
+  if (r.from < 200) more(-1);
+  if (r.to > bars.length - 200 && !tail) more(1);
+});
+function status(msg) {
+  const s = $("status");
+  if (msg) { s.textContent = msg; return; }
+  if (!bars.length) { s.textContent = ""; return; }
+  const f = d => new Date(d * 1000).toISOString().slice(0, 10);
+  s.textContent = `已載入 ${bars.length.toLocaleString()} 根 · ${f(bars[0].time)} → ${f(bars[bars.length - 1].time)}`;
+}
+
+// ---------------- 圖例與浮水印 ----------------
+function legend(p) {
+  let i = bars.length - 1;
+  if (p && p.time !== undefined) { const j = bars.findIndex(b => b.time === p.time); if (j >= 0) i = j; }
+  if (i < 0) { $("ohlc").innerHTML = ""; return; }
+  const b = bars[i], prev = i > 0 ? bars[i - 1].close : b.open;
+  const ch = b.close - prev, pct = ch / prev * 100, c = ch >= 0 ? "u" : "d";
+  $("ohlc").innerHTML =
+    `<div class="t"><b>NQ1!</b> · ${LABEL[tf]} · CME <span class="m">· ${contracts[kk[i]] || ""}${adj === "1" ? " · 換月回補" : ""}</span></div>` +
+    `<div class="${c}"><span class="m">開</span> ${fmt(b.open)} <span class="m">高</span> ${fmt(b.high)} ` +
+    `<span class="m">低</span> ${fmt(b.low)} <span class="m">收</span> ${fmt(b.close)} ` +
+    `${ch >= 0 ? "+" : ""}${fmt(ch)} (${ch >= 0 ? "+" : ""}${pct.toFixed(2)}%)</div>`;
+}
+chart.subscribeCrosshairMove(legend);
+const tfText = m => m >= 10080 ? "1W" : m >= 1440 ? "1D" : m % 60 === 0 ? m / 60 + "h" : m + "m";
+function watermark() {
+  const w = $("wm");
+  if (!S || !KZ.on || !KZ.showWm) { w.style.display = "none"; return; }
+  w.style.display = "block";
+  w.style.color = KZ.wmCol;
+  w.style.fontSize = WM_PX[KZ.wmSize] + "px";
+  w.innerHTML = `<div>${fT(S.cur).slice(0, 10).replace(/-/g, "/")}</div><div>NQ1! | ${tfText(tf)}</div>`;
+  placeWm();
+}
+function placeWm() {
+  const w = $("wm");
+  w.style.right = (chart.priceScale("right").width() + 14) + "px";
+  w.style.bottom = (chart.timeScale().height() + 12) + "px";
+}
+new ResizeObserver(() => requestAnimationFrame(placeWm)).observe(el);
+function toast(msg, ms = 2600) {
+  const d = document.createElement("div");
+  d.innerHTML = msg; $("toast").appendChild(d);
+  setTimeout(() => d.remove(), ms);
+}
+
+// ---------------- 重播 ----------------
+let playing = false, stepping = false;
+// 當天（18:00 起算的交易日）已經結束、還沒被碰過的 KZ 高低點
+function kzLevels(now) {
+  const n = bars.length; if (!n || tf >= 1440) return [];
+  const D = 86400, ds = Math.floor((now - 18 * 3600) / D) * D + 18 * 3600;
+  const out = [];
+  KZ.kz.forEach(z => {
+    if (!z.on || !/^\d{4}-\d{4}$/.test(z.ses)) return;
+    const a = +z.ses.slice(0, 2) * 60 + +z.ses.slice(2, 4), b = +z.ses.slice(5, 7) * 60 + +z.ses.slice(7, 9);
+    const s0 = ds + ((a - 1080 + 1440) % 1440) * 60, s1 = s0 + ((b - a + 1440) % 1440) * 60;
+    if (now < s1) return;                                   // 這個 KZ 還沒走完
+    let hi = -Infinity, lo = Infinity, i = 0;
+    while (i < n && bars[i].time < s0) i++;
+    for (; i < n && bars[i].time < s1; i++) { hi = Math.max(hi, bars[i].high); lo = Math.min(lo, bars[i].low); }
+    if (hi === -Infinity) return;
+    let hiHit = false, loHit = false;
+    for (; i < n; i++) { if (bars[i].high >= hi) hiHit = true; if (bars[i].low <= lo) loHit = true; }
+    if (!hiHit) out.push({ name: z.name + "高", p: hi, up: true, after: s1 });
+    if (!loHit) out.push({ name: z.name + "低", p: lo, up: false, after: s1 });
+  });
+  return out;
+}
+async function step(opts = {}) {
+  if (!S || stepping) return false;
+  stepping = true;
+  try {
+    const need = !!(S.pos || S.order);
+    const q = new URLSearchParams({ tf, adj, sess: sessOnly ? 1 : 0, cur: S.cur, m1: need ? 1 : 0, unit: S.settings.unit });
+    if (opts.to) q.set("to", opts.to);
+    const d = await (await fetch("/api/step?" + q)).json();
+    if (d.error) { toast(d.error === "too far" ? "有持倉或掛單時一次最多快轉約 4 個月" : "錯誤：" + d.error); return false; }
+    if (d.cur === S.cur || d.cur == null) { if (d.end) toast("已經到資料的最後一根"); return false; }
+    const prevPx = S.px;
+    S.cur = d.cur; S.px = d.px; S.k = d.k_cur;
+    let paused = false;
+    if (d.m1) paused = simulate(d.m1, prevPx);
+    let kzHit = null;
+    if (d.bars && tail && bars.length) {
+      const lv = playing ? kzLevels(Math.max(bars[bars.length - 1].time, ...d.bars.t)) : [];
+      for (let i = 0; i < d.bars.t.length; i++) {
+        if (!kzHit) for (const L of lv)
+          if (d.bars.t[i] >= L.after && (L.up ? d.bars.h[i] >= L.p : d.bars.l[i] <= L.p)) { kzHit = L; break; }
+        const b = { time: d.bars.t[i], open: d.bars.o[i], high: d.bars.h[i], low: d.bars.l[i], close: d.bars.c[i] };
+        const n = bars.length;
+        if (b.time === bars[n - 1].time) { bars[n - 1] = b; kk[n - 1] = d.bars.k[i]; candles.update(b); }
+        else if (b.time > bars[n - 1].time) { bars.push(b); kk.push(d.bars.k[i]); candles.update(b); }
+      }
+      afterData(); legend();
+    } else {
+      await load();
+    }
+    renderLive(); syncLines(); watermark(); saveSession(4000);
+    if (paused && S.settings.pauseOnFill) setPlaying(false);
+    if (kzHit && playing) { setPlaying(false); toast(`碰到當天${kzHit.name} ${kzHit.p.toFixed(2)}，已暫停`); }
+    if (d.end) { toast("已經到資料的最後一根"); return false; }
+    return true;
+  } catch (e) { status("錯誤：" + e.message); return false; }
+  finally { stepping = false; }
+}
+function setPlaying(v) {
+  playing = v && !!S;
+  $("playbtn").textContent = playing ? "⏸" : "▶";
+  $("playbtn").classList.toggle("on", playing);
+  if (playing) playLoop();
+}
+async function playLoop() {
+  while (playing) {
+    const t0 = performance.now();
+    const ok = await step();
+    if (!ok) { setPlaying(false); break; }
+    const wait = 1000 / S.settings.speed - (performance.now() - t0);
+    if (wait > 0) await sleep(wait);
+  }
+}
+$("playbtn").onclick = () => setPlaying(!playing);
+$("stepbtn").onclick = () => { setPlaying(false); step(); };
+$("speed").onchange = e => { if (S) { S.settings.speed = +e.target.value; saveSession(); } };
+$("unit").onchange = e => { if (S) { S.settings.unit = e.target.value; saveSession(); } };
+$("o_price").addEventListener("input", () => renderLive());
+$("next18").onclick = () => {
+  if (!S) return;
+  setPlaying(false);
+  let n = Math.floor(S.cur / 86400) * 86400 + 18 * 3600;
+  if (n <= S.cur + 60) n += 86400;
+  while ([5, 6].includes(dt(n).getUTCDay())) n += 86400;     // 週五、週六晚上沒開盤
+  step({ to: n - 60 });
+};
+$("nextkz").onclick = async () => {
+  if (!S || tf >= 1440) return;
+  setPlaying(false);
+  const ses = KZ.kz.map((z, i) => z.on ? `${i}:${z.ses}` : null).filter(Boolean).join(",");
+  if (!ses) { toast("KZ 設定裡沒有勾任何時段"); return; }
+  const d = await (await fetch("/api/nextkz?" + new URLSearchParams({ tf, adj, sess: 0, cur: S.cur, ses }))).json();
+  if (!d.t) { toast("後面找不到 KZ 被破的地方"); return; }
+  const ok = await step({ to: d.t });
+  const z = KZ.kz[d.kz];
+  if (ok !== false && S.cur === d.t) toast(`${fT(d.t)} 碰到當天${z ? z.name : "KZ"}${d.up ? "高" : "低"} ${d.p.toFixed(2)}`);
+};
+$("ffbtn").onclick = () => {
+  const v = $("ffto").value; if (!S || !v) return;
+  const t = Math.floor(Date.parse(v + ":00Z") / 1000);
+  if (t <= S.cur) { toast("只能往後快轉（回測不能倒退）"); return; }
+  setPlaying(false); step({ to: t });
+};
+
+// ---------------- 下單與成交模擬 ----------------
+const slipPx = () => (S.settings.slip || 0) * TICK;
+function orderKind(dir, price) { return (dir > 0) === (price < S.px) ? "limit" : "stop"; }
+function openPos(dir, qty, entry, t, k, how) {
+  S.pos = { dir, qty, entry, t_in: t, sl: null, tp: null, sl0: null, tp0: null, k, mae: 0, mfe: 0, how, adds: 0 };
+}
+// 成交一筆：沒持倉 → 開倉；同向 → 加倉（均價）；反向 → 平倉（口數比持倉多的部分反手開新倉）
+function execute(dir, qty, px, t, k, how) {
+  const p = S.pos, msgs = [], closed = [];
+  if (!p) { openPos(dir, qty, px, t, k, how); msgs.push(`${dir > 0 ? "買進" : "賣出"} ${qty} 口 @ ${fmt(px)}`); return { msgs, closed }; }
+  if (p.dir === dir) {
+    p.entry = (p.entry * p.qty + px * qty) / (p.qty + qty);
+    p.qty += qty; p.adds = (p.adds || 0) + 1;
+    msgs.push(`加倉 ${qty} 口 @ ${fmt(px)} → 共 ${p.qty} 口，均價 ${fmt(p.entry)}`);
+    return { msgs, closed };
+  }
+  const cq = Math.min(qty, p.qty);
+  const tr = closePos(px, t, how === "市價" ? "手動" : "掛單平倉", cq);
+  closed.push(tr);
+  msgs.push(`${S.pos ? "部分平倉" : "平倉"} ${cq} 口 <b class="${cls(tr.pnl)}">${money(Math.round(tr.pnl))}</b>`);
+  if (qty > cq) { openPos(dir, qty - cq, px, t, k, how); msgs.push(`反手${dir > 0 ? "做多" : "做空"} ${qty - cq} 口 @ ${fmt(px)}`); }
+  return { msgs, closed };
+}
+function place(dir) {
+  if (!S || S.px == null) return;
+  const st = S.settings, qty = Math.max(1, Math.round(st.qty || 1));
+  if (st.otype === "lmt") {
+    const price = rnd(+$("o_price").value);
+    if (!(price > 0)) { toast("請輸入掛單價格"); return; }
+    if (price !== S.px) {
+      if (S.order) toast("原本的掛單已取消，換成新的");
+      S.order = { dir, qty, price, kind: orderKind(dir, price), sl: null, tp: null, t: S.cur };
+      toast(`${dir > 0 ? "買進" : "賣出"}${S.order.kind === "limit" ? "限價" : "停損單"} ${qty} 口 @ ${fmt(price)}`);
+      afterTrade(); return;
+    }
+  }
+  const r = execute(dir, qty, rnd(S.px + dir * slipPx()), S.cur, S.k, "市價");
+  for (const m of r.msgs) toast(m);
+  afterTrade(r.closed.length > 0);
+}
+function closePos(px, t, reason, qty) {
+  const p = S.pos, st = S.settings, pv = PV[st.inst];
+  const q = Math.min(qty || p.qty, p.qty);
+  const pts = (px - p.entry) * p.dir, risk = p.sl0 != null ? Math.abs(p.entry - p.sl0) : null;
+  const comm = (st.comm || 0) * q;
+  const tr = { id: ++S.seq, dir: p.dir, qty: q, inst: st.inst, how: p.how + (p.adds ? `+加倉${p.adds}次` : ""), t_in: p.t_in, p_in: +p.entry.toFixed(4), t_out: t, p_out: px,
+    sl0: p.sl0, tp0: p.tp0, sl_last: p.sl, tp_last: p.tp, reason: q < p.qty ? reason + "(部分)" : reason, pts: +pts.toFixed(2), comm,
+    pnl: +(pts * pv * q - comm).toFixed(2), R: risk ? +(pts / risk).toFixed(2) : null,
+    mae: +p.mae.toFixed(2), mfe: +p.mfe.toFixed(2), note: "" };
+  S.trades.push(tr);
+  p.qty -= q;
+  if (p.qty <= 0) S.pos = null;
+  return tr;
+}
+function manualClose() {
+  if (!S || !S.pos) return;
+  const tr = closePos(rnd(S.px - S.pos.dir * slipPx()), S.cur, "手動");
+  toast(`平倉 ${money(Math.round(tr.pnl))}`);
+  afterTrade(true);
+}
+// 用 1 分鐘 K 逐根判斷：掛單成交 → 停損／停利。回傳 true 表示有成交或出場（可自動暫停）
+function simulate(m, prevPx) {
+  let ev = false, prevC = prevPx, prevT = null;
+  const st = S.settings;
+  for (let i = 0; i < m.t.length; i++) {
+    const t = m.t[i], o = m.o[i], h = m.h[i], l = m.l[i], c = m.c[i], k = m.k[i];
+    let fillBar = false;
+    if (S.pos && S.pos.k != null && k !== S.pos.k) {           // 換月：用舊合約最後收盤平倉
+      const tr = closePos(prevC, prevT ?? t, "換月"); ev = true; toast(`換月平倉 ${money(Math.round(tr.pnl))}`);
+    }
+    const od = S.order;
+    if (od) {
+      const buy = od.dir > 0;
+      let fill = null;
+      if (od.kind === "limit") { if (buy ? l <= od.price : h >= od.price) fill = buy ? Math.min(o, od.price) : Math.max(o, od.price); }
+      else if (buy ? h >= od.price : l <= od.price) fill = rnd((buy ? Math.max(o, od.price) : Math.min(o, od.price)) + od.dir * slipPx());
+      if (fill !== null) {
+        const had = S.pos;
+        S.order = null;
+        const r = execute(od.dir, od.qty, fill, t, k, od.kind === "limit" ? "限價" : "停損單");
+        // 掛單上拉好的 TP／SL：成交後套到持倉（依實際成交價平移）
+        if (S.pos && S.pos.dir === od.dir) {
+          const sh = fill - od.price;
+          if (od.sl != null) setSlTp("pos", "sl", rnd(od.sl + sh));
+          if (od.tp != null) setSlTp("pos", "tp", rnd(od.tp + sh));
+        }
+        fillBar = !had || had !== S.pos;
+        ev = true;
+        toast("掛單成交：" + r.msgs.join("；"));
+      }
+    }
+    const p = S.pos;
+    if (p) {
+      const d = p.dir;
+      const gapSL = p.sl != null && (d > 0 ? o <= p.sl : o >= p.sl) && !fillBar;
+      const gapTP = p.tp != null && (d > 0 ? o >= p.tp : o <= p.tp) && !fillBar;
+      const hitSL = p.sl != null && (d > 0 ? l <= p.sl : h >= p.sl);
+      const hitTP = !fillBar && p.tp != null && (d > 0 ? h >= p.tp : l <= p.tp);
+      let px = null, why = null;
+      if (gapSL) { px = o - d * slipPx(); why = "停損"; }
+      else if (gapTP) { px = o; why = "停利"; }
+      else if (hitSL && hitTP) {
+        // 陽 K 視為先低後高、陰 K 先高後低
+        const lowFirst = c >= o, slFirst = st.same === "sl" || (d > 0 ? lowFirst : !lowFirst);
+        if (slFirst) { px = p.sl - d * slipPx(); why = "停損"; } else { px = p.tp; why = "停利"; }
+      } else if (hitSL) { px = p.sl - d * slipPx(); why = "停損"; }
+      else if (hitTP) { px = p.tp; why = "停利"; }
+      // 最大有利／不利（點）：出場那根只算到出場價
+      const fav = why === "停利" ? Math.abs(px - p.entry) : (d > 0 ? h - p.entry : p.entry - l);
+      const adv = why === "停損" ? Math.abs(p.entry - px) : (d > 0 ? p.entry - l : h - p.entry);
+      p.mfe = Math.max(p.mfe, fav, 0);
+      p.mae = Math.max(p.mae, adv, 0);
+      if (why) {
+        if (why === "停損" && p.sl != null && (p.sl - p.entry) * d >= 0) why = (Math.abs(p.sl - p.entry) < TICK ? "保本" : "移動停損");
+        const tr = closePos(rnd(px), t, why); ev = true;
+        toast(`${why}出場 <b class="${cls(tr.pnl)}">${money(Math.round(tr.pnl))}</b>`);
+      }
+    }
+    prevC = c; prevT = t;
+  }
+  if (ev) { renderTrades(); setTradeMarkers(); }
+  return ev;
+}
+function afterTrade(tradesChanged = false) {
+  syncLines(); trPrim.update(); setTradeMarkers(); renderLive();
+  if (tradesChanged) renderTrades();
+  saveSession();
+}
+$("buy").onclick = () => place(1);
+$("sell").onclick = () => place(-1);
+$("closebtn").onclick = manualClose;
+$("cancelord").onclick = () => { if (S && S.order) { S.order = null; toast("已取消掛單"); afterTrade(); } };
+$("bebtn").onclick = () => { if (S && S.pos) { setSlTp("pos", "sl", rnd(S.pos.entry)); afterTrade(); } };
+$("p_sl").onchange = e => { if (!S || !S.pos) return; setSlTp("pos", "sl", e.target.value === "" ? null : rnd(+e.target.value)); afterTrade(); };
+$("p_tp").onchange = e => { if (!S || !S.pos) return; setSlTp("pos", "tp", e.target.value === "" ? null : rnd(+e.target.value)); afterTrade(); };
+
+// ---------------- 面板 ----------------
+function bindSetting(id, key, conv = v => v, after) {
+  const e = $(id);
+  e.addEventListener(e.type === "checkbox" || e.tagName === "SELECT" ? "change" : "input", () => {
+    if (!S) return;
+    S.settings[key] = e.type === "checkbox" ? e.checked : conv(e.value);
+    renderLive(); saveSession(); after && after();
+  });
+}
+bindSetting("o_qty", "qty", v => Math.max(1, Math.round(+v || 1)));
+bindSetting("s_inst", "inst", v => v, () => { syncLines(); renderTrades(); });
+bindSetting("s_comm", "comm", v => Math.max(0, +v || 0)); bindSetting("s_slip", "slip", v => Math.max(0, Math.round(+v || 0)));
+bindSetting("s_same", "same"); bindSetting("s_pause", "pauseOnFill");
+function setOtype(v) { if (!S) return; S.settings.otype = v; if (v === "lmt" && S.px != null) $("o_price").value = S.px; renderLive(); saveSession(); }
+$("ot_mkt").onclick = () => setOtype("mkt");
+$("ot_lmt").onclick = () => setOtype("lmt");
+for (const b of $("tabs").children) b.onclick = () => {
+  for (const x of $("tabs").children) x.classList.toggle("on", x === b);
+  for (const t of document.querySelectorAll(".tab")) t.classList.toggle("on", t.id === "tab_" + b.dataset.tab);
+  store.set("tab", b.dataset.tab);
+  if (b.dataset.tab === "stats") renderStats();
+};
+function fillSettings() {
+  const st = S.settings;
+  $("o_qty").value = st.qty;
+  $("s_inst").value = st.inst; $("s_comm").value = st.comm; $("s_slip").value = st.slip; $("s_same").value = st.same; $("s_pause").checked = st.pauseOnFill;
+  $("speed").value = String(st.speed); $("unit").value = st.unit;
+}
+function balance() { return S.settings.balance + S.trades.reduce((s, x) => s + x.pnl, 0); }
+function renderLive() {
+  try { mobilePos(); } catch (e) {}
+  if (!S) return;
+  const st = S.settings, pv = PV[st.inst];
+  $("curpx").textContent = fmt(S.px);
+  $("curtime").textContent = S.cur ? `${fT(S.cur)}（${wd(S.cur)}）` : "";
+  $("clock").textContent = S.cur ? `${fT(S.cur)} 週${wd(S.cur)}` : "—";
+  $("ot_mkt").classList.toggle("on", st.otype !== "lmt"); $("ot_lmt").classList.toggle("on", st.otype === "lmt");
+  $("lmtrow").style.display = st.otype === "lmt" ? "flex" : "none";
+  const ref = st.otype === "lmt" && +$("o_price").value > 0 ? rnd(+$("o_price").value) : null;
+  $("buypx").textContent = ref ? `${fmt(ref)}（${orderKind(1, ref) === "limit" ? "限價" : "停損單"}）` : fmt(S.px == null ? null : S.px + slipPx());
+  $("sellpx").textContent = ref ? `${fmt(ref)}（${orderKind(-1, ref) === "limit" ? "限價" : "停損單"}）` : fmt(S.px == null ? null : S.px - slipPx());
+  $("riskhint").innerHTML = S.pos ? `已有${S.pos.dir > 0 ? "多" : "空"}單：按${S.pos.dir > 0 ? "買進＝加倉、賣出＝平倉" : "賣出＝加倉、買進＝平倉"}（口數比持倉多會反手）`
+    : "成交後，從圖上持倉線右邊的 <b style=\"color:#26a69a\">TP</b>／<b style=\"color:#f23645\">SL</b> 拖出停利停損線";
+  const p = S.pos;
+  $("poscard").style.display = p ? "block" : "none";
+  if (p) {
+    const pts = (S.px - p.entry) * p.dir, upl = pts * pv * p.qty, risk = p.sl0 != null ? Math.abs(p.entry - p.sl0) : null;
+    $("posupl").innerHTML = `<b class="${cls(upl)}">${money(Math.round(upl))}</b>`;
+    $("poskv").innerHTML = `<span>方向</span><span><span class="tag ${p.dir > 0 ? "l" : "s"}">${p.dir > 0 ? "多" : "空"}</span> ${p.qty} 口（${p.how}${p.adds ? `，加倉 ${p.adds} 次` : ""}）</span>` +
+      `<span>${p.adds ? "均價" : "進場"}</span><span>${fmt(p.entry)} · ${fTs(p.t_in)}</span>` +
+      `<span>RR</span><span>${p.sl != null && p.tp != null ? rrText(p.entry, p.sl, p.tp).replace(" · RR ", "") : "—"}${p.sl != null ? ` · 風險 ${money(Math.round(Math.abs(p.entry - p.sl) * pv * p.qty), false)}` : ""}</span>` +
+      `<span>浮動</span><span class="${cls(pts)}">${pts >= 0 ? "+" : ""}${pts.toFixed(2)} 點${risk ? ` · ${(pts / risk).toFixed(2)}R` : ""}</span>` +
+      `<span>持有</span><span>${Math.round((S.cur - p.t_in) / 60)} 分鐘</span>`;
+    if (document.activeElement !== $("p_sl")) $("p_sl").value = p.sl ?? "";
+    if (document.activeElement !== $("p_tp")) $("p_tp").value = p.tp ?? "";
+  }
+  const o = S.order;
+  $("ordcard").style.display = o ? "block" : "none";
+  if (o) $("ordkv").innerHTML = `<span>${o.dir > 0 ? "買進" : "賣出"}${o.kind === "limit" ? "限價" : "停損單"}</span><span>${o.qty} 口 @ ${fmt(o.price)}</span>` +
+    `<span>停損／停利</span><span>${o.sl != null ? fmt(o.sl) : "無"} / ${o.tp != null ? fmt(o.tp) : "無"}${rrText(o.price, o.sl, o.tp)}</span>` +
+    `<span>下單時間</span><span>${fTs(o.t)}</span>`;
+  const bal = balance(), realized = bal - st.balance;
+  const upl = p ? (S.px - p.entry) * p.dir * pv * p.qty : 0;
+  $("acctkv").innerHTML = `<span>起始資金</span><span>${money(st.balance, false)}</span>` +
+    `<span>已實現</span><span class="${cls(realized)}">${money(Math.round(realized))}</span>` +
+    `<span>帳戶餘額</span><span>${money(Math.round(bal), false)}</span>` +
+    `<span>含浮動</span><span>${money(Math.round(bal + upl), false)}</span>` +
+    `<span>交易筆數</span><span>${S.trades.length}</span>`;
+}
+function calcStats(trs, start) {
+  const n = trs.length, W = trs.filter(x => x.pnl > 0), L = trs.filter(x => x.pnl <= 0);
+  const sum = a => a.reduce((s, x) => s + x.pnl, 0);
+  const gp = sum(W), gl = -sum(L), net = gp - gl;
+  let eq = start, peak = start, dd = 0, ddPct = 0, cw = 0, cl = 0, mw = 0, ml = 0;
+  for (const x of trs) {
+    eq += x.pnl; peak = Math.max(peak, eq);
+    if (peak - eq > dd) { dd = peak - eq; ddPct = dd / peak * 100; }
+    if (x.pnl > 0) { cw++; cl = 0; mw = Math.max(mw, cw); } else { cl++; cw = 0; ml = Math.max(ml, cl); }
+  }
+  const rs = trs.filter(x => x.R != null);
+  return { n, w: W.length, l: L.length, wr: n ? W.length / n * 100 : 0, net, gp, gl, pf: gl > 0 ? gp / gl : (gp > 0 ? Infinity : 0),
+    avgW: W.length ? gp / W.length : 0, avgL: L.length ? gl / L.length : 0, exp: n ? net / n : 0,
+    avgR: rs.length ? rs.reduce((s, x) => s + x.R, 0) / rs.length : null, sumR: rs.reduce((s, x) => s + x.R, 0), nR: rs.length,
+    dd, ddPct, mw, ml, hold: n ? trs.reduce((s, x) => s + (x.t_out - x.t_in), 0) / n / 60 : 0,
+    best: n ? Math.max(...trs.map(x => x.pnl)) : 0, worst: n ? Math.min(...trs.map(x => x.pnl)) : 0 };
+}
+function renderStats() {
+  if (!S) return;
+  const s = calcStats(S.trades, S.settings.balance);
+  const pf = s.pf === Infinity ? "∞" : s.pf.toFixed(2);
+  const tiles = [
+    ["淨損益", `<span class="${cls(s.net)}">${money(Math.round(s.net))}</span>`, `${(s.net / S.settings.balance * 100).toFixed(1)}% 報酬`],
+    ["勝率", `${s.wr.toFixed(1)}%`, `${s.w} 勝 / ${s.l} 敗（共 ${s.n} 筆）`],
+    ["獲利因子", pf, `總獲利 ${money(Math.round(s.gp), false)} / 總虧損 ${money(Math.round(s.gl), false)}`],
+    ["期望值（每筆）", `<span class="${cls(s.exp)}">${money(Math.round(s.exp))}</span>`, s.avgR != null ? `平均 ${s.avgR.toFixed(2)}R` : "—"],
+    ["平均獲利", `<span class="${s.avgW ? "pos" : ""}">${money(Math.round(s.avgW), false)}</span>`, `最大單筆 ${money(Math.round(s.best))}`],
+    ["平均虧損", `<span class="${s.avgL ? "neg" : ""}">-${money(Math.round(s.avgL), false)}</span>`, `最大單筆 ${money(Math.round(s.worst))}`],
+    ["盈虧比", s.avgL ? (s.avgW / s.avgL).toFixed(2) : "—", "平均獲利 ÷ 平均虧損"],
+    ["總 R", `<span class="${cls(s.sumR)}">${s.sumR >= 0 ? "+" : ""}${s.sumR.toFixed(2)}R</span>`, `${s.nR} 筆有設停損`],
+    ["最大回撤", `<span class="neg">-${money(Math.round(s.dd), false)}</span>`, `${s.ddPct.toFixed(1)}%（以平倉後權益計）`],
+    ["最大連勝／連敗", `${s.mw} / ${s.ml}`, "筆"],
+    ["平均持有", `${s.hold.toFixed(0)} 分鐘`, ""],
+    ["帳戶餘額", money(Math.round(balance()), false), `起始 ${money(S.settings.balance, false)}`],
+  ];
+  $("tiles").innerHTML = tiles.map(([k, v, sub]) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${sub}</div></div>`).join("");
+  const row = (name, a) => { const x = calcStats(a, 0); return `<tr><td>${name}</td><td>${x.n}</td><td>${x.n ? x.wr.toFixed(0) + "%" : "—"}</td><td class="${cls(x.net)}">${money(Math.round(x.net))}</td><td>${x.nR ? (x.sumR >= 0 ? "+" : "") + x.sumR.toFixed(1) + "R" : "—"}</td></tr>`; };
+  const head = "<tr><th></th><th>筆數</th><th>勝率</th><th>損益</th><th>總 R</th></tr>";
+  $("lstab").innerHTML = head + row("多單", S.trades.filter(x => x.dir > 0)) + row("空單", S.trades.filter(x => x.dir < 0));
+  const byH = {};
+  for (const x of S.trades) { const h = dt(x.t_in).getUTCHours(); (byH[h] = byH[h] || []).push(x); }
+  const hs = Object.keys(byH).map(Number).sort((a, b) => ((a + 6) % 24) - ((b + 6) % 24));   // 18 點排最前面
+  $("hrtab").innerHTML = head + (hs.length ? hs.map(h => row(`${String(h).padStart(2, "0")}:00`, byH[h])).join("") : `<tr><td colspan="5" class="m">還沒有交易</td></tr>`);
+  drawEquity();
+}
+function drawEquity() {
+  const cv = $("eq"), dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+  if (!W) return;
+  cv.width = W * dpr; cv.height = H * dpr;
+  const ctx = cv.getContext("2d"); ctx.scale(dpr, dpr); ctx.clearRect(0, 0, W, H);
+  const st = S.settings.balance, pts = [st];
+  for (const x of S.trades) pts.push(pts[pts.length - 1] + x.pnl);
+  $("eqtxt").textContent = `${S.trades.length} 筆`;
+  if (pts.length < 2) { ctx.fillStyle = "#787b86"; ctx.font = "12px sans-serif"; ctx.fillText("還沒有交易", 8, H / 2); return; }
+  const lo = Math.min(...pts), hi = Math.max(...pts), pad = (hi - lo) * 0.08 || 100;
+  const X = i => 4 + i / (pts.length - 1) * (W - 8), Y = v => H - 6 - (v - (lo - pad)) / (hi - lo + 2 * pad) * (H - 12);
+  ctx.strokeStyle = "#2a2e39"; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(0, Y(st)); ctx.lineTo(W, Y(st)); ctx.stroke(); ctx.setLineDash([]);
+  const up = pts[pts.length - 1] >= st, col = up ? "#26a69a" : "#f23645";
+  ctx.beginPath(); pts.forEach((v, i) => i ? ctx.lineTo(X(i), Y(v)) : ctx.moveTo(X(i), Y(v)));
+  ctx.strokeStyle = col; ctx.lineWidth = 1.6; ctx.stroke();
+  ctx.lineTo(X(pts.length - 1), Y(st)); ctx.lineTo(X(0), Y(st)); ctx.closePath();
+  ctx.fillStyle = up ? "rgba(38,166,154,.12)" : "rgba(242,54,69,.12)"; ctx.fill();
+}
+let openRow = null;
+function renderTrades() {
+  if (!S) return;
+  const n = S.trades.length, wins = S.trades.filter(x => x.pnl > 0).length;
+  $("ntr").textContent = n ? `(${n})` : "";
+  $("loginfo").textContent = n ? `${n} 筆 · 勝率 ${(wins / n * 100).toFixed(0)}% · 點一列看詳細／寫備註` : "";
+  const rows = [];
+  for (const x of [...S.trades].reverse()) {
+    rows.push(`<tr class="tr${x.id === selTrade ? " sel" : ""}" data-id="${x.id}"><td>${x.id}</td><td><span class="tag ${x.dir > 0 ? "l" : "s"}">${x.dir > 0 ? "多" : "空"}${x.qty > 1 ? x.qty : ""}</span></td>` +
+      `<td>${fTs(x.t_in)}</td><td>${x.reason}</td><td>${x.R == null ? "—" : x.R.toFixed(2)}</td><td class="${cls(x.pnl)}">${money(Math.round(x.pnl))}</td></tr>`);
+    if (x.id === openRow) rows.push(`<tr class="det"><td colspan="6">
+      <div class="kv"><span>進場（${x.how || "市價"}）</span><span>${fmt(x.p_in)} · ${fT(x.t_in)}</span><span>出場</span><span>${fmt(x.p_out)} · ${fT(x.t_out)}</span>
+      <span>原始停損／停利</span><span>${fmt(x.sl0)} / ${fmt(x.tp0)}</span><span>出場時停損／停利</span><span>${fmt(x.sl_last)} / ${fmt(x.tp_last)}</span><span>點數</span><span class="${cls(x.pts)}">${x.pts >= 0 ? "+" : ""}${x.pts}（手續費 $${x.comm}）</span>
+      <span>最大不利／有利</span><span>${x.mae} / ${x.mfe} 點</span><span>持有</span><span>${Math.round((x.t_out - x.t_in) / 60)} 分鐘</span></div>
+      <textarea data-note="${x.id}" placeholder="備註（進場理由、心得…）">${(x.note || "").replace(/</g, "&lt;")}</textarea>
+      <div class="row2"><button data-view="${x.id}">在圖上看</button><button data-del="${x.id}">刪除這筆</button></div></td></tr>`);
+  }
+  $("logbody").innerHTML = rows.join("") || `<tr><td colspan="6" class="m" style="text-align:center;padding:20px">還沒有交易</td></tr>`;
+  if ($("tab_stats").classList.contains("on")) renderStats();
+}
+$("logbody").addEventListener("click", e => {
+  const v = e.target.closest("[data-view]"), del = e.target.closest("[data-del]"), r = e.target.closest("tr.tr");
+  if (v) { const x = S.trades.find(t => t.id === +v.dataset.view); if (x) { selTrade = x.id; load({ around: x.t_in }); renderTrades(); } return; }
+  if (del) {
+    const id = +del.dataset.del;
+    if (!twice("del" + id, "再按一次「刪除這筆」確認")) return;
+    S.trades = S.trades.filter(t => t.id !== id); openRow = null; afterTrade(true); return;
+  }
+  if (r) { const id = +r.dataset.id; openRow = openRow === id ? null : id; selTrade = openRow; renderTrades(); trPrim.update(); }
+});
+$("logbody").addEventListener("input", e => {
+  const id = e.target.dataset.note; if (!id) return;
+  const x = S.trades.find(t => t.id === +id); if (x) { x.note = e.target.value; saveSession(); }
+});
+$("csvbtn").onclick = () => {
+  if (!S || !S.trades.length) { toast("還沒有交易"); return; }
+  const H = ["編號", "方向", "口數", "商品", "進場方式", "進場時間(紐約)", "進場價", "出場時間(紐約)", "出場價", "原始停損", "原始停利", "最後停損", "最後停利", "出場原因", "點數", "R", "損益($)", "手續費($)", "最大不利(點)", "最大有利(點)", "持有(分)", "備註"];
+  const q = v => { const s = v == null ? "" : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+  const lines = [H.join(",")].concat(S.trades.map(x => [x.id, x.dir > 0 ? "多" : "空", x.qty, x.inst, x.how, fT(x.t_in), x.p_in, fT(x.t_out), x.p_out,
+    x.sl0, x.tp0, x.sl_last, x.tp_last, x.reason, x.pts, x.R, x.pnl, x.comm, x.mae, x.mfe, Math.round((x.t_out - x.t_in) / 60), x.note].map(q).join(",")));
+  const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+  (async () => {
+    const dl = window.claude && window.claude.use ? await window.claude.use("downloads") : null;
+    if (!dl) { toast("這裡不能下載檔案"); return; }
+    try { await dl.save({ filename: `${S.name}_交易紀錄.csv`, data: blob }); } catch (e) { if (e && e.code !== "declined") toast("下載失敗：" + (e.message || e.code)); }
+  })();
+};
+
+// ---------------- 存檔（sessions/<id>.json）----------------
+let saveTimer = null, saveDue = 0, saving = false, dirty = false;
+function snapshot() { S.tf = tf; S.sessOnly = sessOnly; return JSON.stringify(S); }
+function saveSession(delay = 400) {      // 最晚 delay 毫秒內一定會存（播放中也會持續存）
+  if (!S) return;
+  dirty = true; $("savetxt").textContent = "尚未儲存…";
+  const due = Date.now() + delay;
+  if (saveTimer && saveDue <= due) return;
+  clearTimeout(saveTimer); saveDue = due;
+  saveTimer = setTimeout(() => { saveTimer = null; flush(); }, delay);
+}
+async function flush() {
+  if (!S || !dirty) return;
+  if (saving) { saveSession(300); return; }
+  saving = true; dirty = false;
+  try {
+    const r = await fetch("/api/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: snapshot() });
+    if (!r.ok) throw new Error((await r.json()).error || r.status);
+    $("savetxt").textContent = `✓ 已自動儲存${STORE_TXT} ${new Date().toLocaleTimeString("zh-TW", { hour12: false })}`;
+  } catch (e) { dirty = true; $("savetxt").textContent = "⚠ 儲存失敗：" + e.message; }
+  saving = false;
+}
+window.addEventListener("pagehide", () => { if (S && dirty) flush(); });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flush(); });
+
+// ---------------- 回測進度：新增／開啟／刪除 ----------------
+async function openSession(id) {
+  setPlaying(false);
+  if (S && dirty) await flush();
+  const r = await fetch("/api/session?id=" + encodeURIComponent(id));
+  if (!r.ok) { toast("找不到這個回測"); return false; }
+  const d = await r.json();
+  S = d;
+  S.settings = Object.assign(clone(SET_DEFAULT), S.settings || {});
+  if (S.order && S.order.slOff !== undefined) {         // 舊版存檔：停損停利是距離 → 換成價格
+    const o = S.order;
+    o.sl = o.slOff == null ? null : rnd(o.price - o.dir * o.slOff); o.tp = o.tpOff == null ? null : rnd(o.price + o.dir * o.tpOff);
+    delete o.slOff; delete o.tpOff;
+  }
+  S.trades = S.trades || []; S.drawings = S.drawings || []; S.seq = S.seq || S.trades.reduce((m, x) => Math.max(m, x.id), 0);
+  tf = LABEL[S.tf] ? S.tf : 5; sessOnly = !!S.sessOnly; adj = S.adj === "1" && INFO.series["1"] ? "1" : "0";
+  selTrade = null; openRow = null;
+  $("empty").style.display = "none";
+  $("sesbtn").textContent = "📁 " + S.name; $("sesbtn").title = "切換／新增回測（目前：" + S.name + "）";
+  $("adjtxt").textContent = (adj === "1" ? "換月回補" : "未調整價格") + " · 時區 America/New_York";
+  fillSettings(); paint(); loadDrawings(); renderTrades();
+  await load();
+  $("savetxt").textContent = "✓ 已開啟（自動存檔）";
+  return true;
+}
+function newId() { return "bt_" + new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14) + "_" + Math.random().toString(36).slice(2, 6); }
+async function createSession() {
+  const v = $("n_start").value;
+  if (!v) { toast("請選起點時間（或按「隨機」）"); return; }
+  const start = Math.floor(Date.parse(v + ":00Z") / 1000);
+  if (!(start > INFO.first + 86400 && start < INFO.last)) { toast("起點超出資料範圍"); return; }
+  const settings = Object.assign(clone(SET_DEFAULT), store.get("lastSettings", {}), {
+    inst: $("n_inst").value, balance: Math.max(100, +$("n_bal").value || 500000), comm: Math.max(0, +$("n_comm").value || 0) });
+  const d = { id: newId(), name: $("n_name").value.trim() || `回測 ${v.slice(0, 10)}`, created: Math.floor(Date.now() / 1000),
+    adj: $("n_adj").value, start: start - 60, cur: start - 60, tf, sessOnly, settings, pos: null, order: null, trades: [], drawings: [], seq: 0 };
+  await fetch("/api/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) });
+  closeSes();
+  await openSession(d.id);
+  toast("回測開始：按 → 或 ▶ 讓 K 線往前走");
+}
+function randomStart() {
+  const lo = INFO.first + 40 * 86400, hi = INFO.last - 5 * 86400;
+  for (let k = 0; k < 50; k++) {
+    const day = Math.floor((lo + Math.random() * (hi - lo)) / 86400) * 86400;
+    if ([5, 6].includes(dt(day).getUTCDay())) continue;
+    return new Date((day + 18 * 3600) * 1000).toISOString().slice(0, 16);
+  }
+}
+async function refreshSesList() {
+  const d = await (await fetch("/api/sessions")).json();
+  const rows = d.items.map(x => `<tr class="${S && x.id === S.id ? "cur" : ""}"><td>${(x.name || "").replace(/</g, "&lt;")}</td><td>${x.cur ? fT(x.cur) : "—"}</td><td>${x.n}</td>` +
+    `<td>${x.n ? Math.round(x.wins / x.n * 100) + "%" : "—"}</td><td class="${cls(x.pnl)}">${money(Math.round(x.pnl))}</td>` +
+    `<td class="m">${new Date(x.updated * 1000).toLocaleString("zh-TW", { hour12: false, month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}</td>` +
+    `<td style="white-space:nowrap"><button data-open="${x.id}">${S && x.id === S.id ? "目前" : "開啟"}</button> <button data-ren="${x.id}" title="改名">✎</button> <button data-rm="${x.id}" title="刪除">🗑</button></td></tr>`);
+  $("seslist").innerHTML = `<tr><th>名稱</th><th>目前位置（紐約）</th><th>筆數</th><th>勝率</th><th>損益</th><th>最後儲存</th><th></th></tr>` +
+    (rows.join("") || `<tr><td colspan="7" class="m" style="text-align:center;padding:14px">還沒有回測</td></tr>`);
+  return d;
+}
+$("seslist").addEventListener("click", async e => {
+  const o = e.target.closest("[data-open]"), rm = e.target.closest("[data-rm]"), ren = e.target.closest("[data-ren]");
+  if (o) { closeSes(); if (!S || S.id !== o.dataset.open) await openSession(o.dataset.open); }
+  if (ren) {
+    const id = ren.dataset.ren, cell = ren.closest("tr").children[0], old = cell.textContent;
+    cell.innerHTML = `<input type="text" value="${old.replace(/"/g, "&quot;")}" style="width:100%">`;
+    const inp = cell.querySelector("input"); inp.focus(); inp.select();
+    const done = async () => {
+      const name = inp.value.trim() || old;
+      if (S && S.id === id) { S.name = name; $("sesbtn").textContent = "📁 " + name; saveSession(0); await sleep(200); }
+      else { const d = await (await fetch("/api/session?id=" + id)).json(); d.name = name;
+        await fetch("/api/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) }); }
+      refreshSesList();
+    };
+    inp.addEventListener("keydown", ev => { if (ev.key === "Enter") done(); if (ev.key === "Escape") refreshSesList(); });
+    inp.addEventListener("blur", done, { once: true });
+  }
+  if (rm) {
+    const id = rm.dataset.rm;
+    if (!twice("rm" + id, "再按一次 🗑 確認刪除（刪了就不能復原）")) return;
+    await fetch("/api/session_delete?id=" + id, { method: "POST" });
+    if (S && S.id === id) { S = null; dirty = false; showEmpty(); }
+    refreshSesList();
+  }
+});
+function openSes() {
+  setPlaying(false);
+  $("n_name").value = ""; $("n_start").value = $("n_start").value || randomStart();
+  const ls = store.get("lastSettings", {});
+  $("n_inst").value = ls.inst || "NQ"; $("n_bal").value = ls.balance && ls.balance !== 50000 ? ls.balance : 500000; $("n_comm").value = ls.comm ?? 5; $("n_adj").value = store.get("lastAdj", "0");
+  $("mask").style.display = $("sesdlg").style.display = "block";
+  refreshSesList();
+}
+function closeSes() { $("sesdlg").style.display = "none"; $("mask").style.display = "none"; }
+$("sesbtn").onclick = openSes;
+$("emptynew").onclick = openSes;
+$("sesx").onclick = closeSes;
+$("n_rand").onclick = () => { $("n_start").value = randomStart(); };
+$("n_ok").onclick = () => { store.set("lastSettings", S ? S.settings : store.get("lastSettings", {})); store.set("lastAdj", $("n_adj").value); createSession(); };
+function showEmpty() {
+  bars = []; kk = []; candles.setData([]); candles.setMarkers([]); syncLines(); loadDrawings();
+  kzPrim.set({ boxes: [], lines: [], labels: [] }); obPrim.set([]);
+  $("empty").style.display = "flex"; $("sesbtn").textContent = "📁 —"; $("ohlc").innerHTML = ""; status(); watermark();
+}
+
+// ---------------- 工具列 ----------------
+const tfs = $("tfs");
+function centerTime() {
+  const r = chart.timeScale().getVisibleLogicalRange();
+  if (!r || !bars.length) return null;
+  const i = Math.max(0, Math.min(bars.length - 1, Math.round((r.from + r.to) / 2)));
+  return bars[i].time;
+}
+function atEnd() { const r = chart.timeScale().getVisibleLogicalRange(); return !r || (tail && r.to >= bars.length - 2); }
+function setTf(m) {
+  if (m === tf || !S) return;
+  const c = centerTime(), e = atEnd();
+  tf = m; paint(); saveSession();
+  load(e || !c ? {} : { around: c });
+}
+function paint() {
+  if ($("tfsel")) $("tfsel").value = tf;
+  for (const b of tfs.children) b.classList.toggle("on", +b.dataset.tf === tf);
+  $("magnet").classList.toggle("on", magnet);
+  $("sessbtn").classList.toggle("on", sessOnly);
+  $("kzbtn").classList.toggle("on", KZ.on);
+  $("obbtn").classList.toggle("on", OBS.on);
+  $("obleg").style.opacity = OBS.on ? 1 : 0.5;
+  $("kzleg").style.opacity = KZ.on ? 1 : 0.5;
+}
+$("magnet").onclick = () => { magnet = !magnet; store.set("magnet", magnet); chart.applyOptions({ crosshair: { mode: magnet ? 1 : 0 } }); paint(); };
+$("sessbtn").onclick = () => {
+  if (!S) return;
+  const c = centerTime(), e = atEnd();
+  sessOnly = !sessOnly; paint(); saveSession();
+  load(e || !c ? {} : { around: c });
+};
+function toggleKZ() { KZ.on = !KZ.on; store.set("kz", KZ); paint(); watermark(); refreshKZ(); }
+$("kzbtn").onclick = toggleKZ; $("kzeye").onclick = toggleKZ;
+$("latest").onclick = () => { if (tail) chart.timeScale().scrollToRealTime(); else load(); };
+function goto() {
+  const v = $("goto").value;
+  if (!v || !S) return;
+  const t = Math.floor(Date.parse(v + ":00Z") / 1000);
+  if (t > S.cur) toast("還沒播放到那裡（回測不能偷看未來）");
+  load({ around: Math.min(t, S.cur) });
+}
+$("gobtn").onclick = goto;
+$("goto").addEventListener("keydown", e => { if (e.key === "Enter") goto(); });
+
+// ---------------- OB／KZ 設定視窗 ----------------
+function toggleOB() { OBS.on = !OBS.on; store.set("obl", OBS); paint(); obPrim.update(); refreshOB(); }
+$("obbtn").onclick = toggleOB; $("obeye").onclick = toggleOB;
+function buildOb() {
+  const esc = x => String(x).replace(/"/g, "&quot;");
+  $("olrows").innerHTML = OB_SPEC.map(([k, label, type, opt, tip]) => {
+    if (k === "h") return `<h4>${label}</h4>`;
+    const t = tip ? ` title="${esc(tip)}"` : "";
+    if (type === "bool") return `<div class="row"${t}><label><input type="checkbox" id="ol_${k}">${label}${tip ? ' <span class="m">ⓘ</span>' : ""}</label></div>`;
+    let inp;
+    if (type === "sel") inp = `<select id="ol_${k}">${opt.map(([v, n]) => `<option value="${v}">${n}</option>`).join("")}</select>`;
+    else if (type === "color") inp = `<input type="color" id="ol_${k}">`;
+    else if (type === "int" || type === "float") inp = `<input type="number" id="ol_${k}" min="${opt[0]}" max="${opt[1]}" step="${type === "int" ? 1 : k === "max_age" ? 0.5 : 0.05}">`;
+    else inp = `<input type="text" id="ol_${k}" style="width:110px"${type === "ses" ? ' placeholder="HHMM-HHMM"' : ""}>`;
+    return `<div class="row"${t}><label>${label}${tip ? ' <span class="m">ⓘ</span>' : ""}</label>${inp}</div>`;
+  }).join("");
+}
+function fillOb(s) {
+  for (const [k, , type] of OB_SPEC) {
+    if (k === "h") continue;
+    const e = $("ol_" + k);
+    if (type === "bool") e.checked = !!s[k]; else e.value = s[k];
+  }
+}
+function readOb() {
+  const s = clone(OBS);
+  for (const [k, , type, opt] of OB_SPEC) {
+    if (k === "h") continue;
+    const e = $("ol_" + k);
+    if (type === "bool") s[k] = e.checked;
+    else if (type === "int" || type === "float") {
+      let v = +e.value; if (e.value === "" || !isFinite(v)) v = OB_DEFAULT[k];
+      v = Math.max(opt[0], Math.min(opt[1], v)); s[k] = type === "int" ? Math.round(v) : v;
+    } else if (type === "sel") s[k] = k === "ln_width" ? +e.value : e.value;
+    else if (type === "ses") s[k] = /^\d{4}-\d{4}$/.test(e.value.trim()) ? e.value.trim() : OB_DEFAULT[k];
+    else s[k] = e.value;
+  }
+  return s;
+}
+function openOb() { buildOb(); fillOb(OBS); $("mask").style.display = $("obdlg").style.display = "block"; }
+function closeOb() { $("obdlg").style.display = "none"; if ($("dlg").style.display !== "block" && $("sesdlg").style.display !== "block") $("mask").style.display = "none"; }
+$("obgear").onclick = openOb;
+$("obbtn").oncontextmenu = e => { e.preventDefault(); openOb(); };
+$("obx").onclick = $("obcancel").onclick = closeOb;
+$("obdef").onclick = () => fillOb(Object.assign(clone(OB_DEFAULT), { on: OBS.on }));
+$("obok").onclick = () => { OBS = readOb(); store.set("obl", OBS); closeOb(); paint(); obPrim.update(); refreshOB(); };
+const FIELDS = ["boxOp", "showHl", "lnOp", "lnStyle", "lnWidth", "showDow", "dowSize", "showWm", "wmCol", "wmSize", "reset"];
+function fillDialog(s) {
+  $("kzrows").innerHTML = s.kz.map((z, i) =>
+    `<div class="row"><label><input type="checkbox" id="z_on${i}" ${z.on ? "checked" : ""}>${z.name}</label>` +
+    `<input type="text" id="z_ses${i}" value="${z.ses}" placeholder="HHMM-HHMM"><input type="color" id="z_col${i}" value="${z.col}"></div>`).join("");
+  for (const f of FIELDS) { const e = $("s_" + f); if (e.type === "checkbox") e.checked = s[f]; else e.value = s[f]; }
+}
+function readDialog() {
+  const s = clone(KZ); let ok = true;
+  s.kz.forEach((z, i) => {
+    const ses = $("z_ses" + i), v = ses.value.trim(), m = /^(\d{2})(\d{2})-(\d{2})(\d{2})$/.exec(v);
+    const good = m && +m[1] < 24 && +m[3] < 24 && +m[2] < 60 && +m[4] < 60 && (+m[1] * 60 + +m[2]) < (+m[3] * 60 + +m[4]);
+    ses.classList.toggle("bad", !good); if (!good) ok = false;
+    z.on = $("z_on" + i).checked; z.ses = v; z.col = $("z_col" + i).value;
+  });
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, Math.round(+v || 0)));
+  for (const f of FIELDS) { const e = $("s_" + f); s[f] = e.type === "checkbox" ? e.checked : e.value; }
+  s.boxOp = clamp(s.boxOp, 0, 100); s.lnOp = clamp(s.lnOp, 0, 100); s.lnWidth = clamp(s.lnWidth, 1, 5); s.reset = clamp(s.reset, 0, 23);
+  return ok ? s : null;
+}
+function openDlg() { fillDialog(KZ); $("mask").style.display = $("dlg").style.display = "block"; }
+function closeDlg() { $("dlg").style.display = "none"; if ($("obdlg").style.display !== "block" && $("sesdlg").style.display !== "block") $("mask").style.display = "none"; }
+$("kzgear").onclick = openDlg;
+$("kzbtn").oncontextmenu = e => { e.preventDefault(); openDlg(); };
+$("dlgx").onclick = $("dlgcancel").onclick = closeDlg;
+$("mask").onclick = () => { closeDlg(); closeOb(); if (S) closeSes(); };
+$("dlgdef").onclick = () => fillDialog(Object.assign(clone(KZ_DEFAULT), { on: KZ.on }));
+$("dlgok").onclick = () => { const s = readDialog(); if (!s) return; KZ = s; store.set("kz", KZ); closeDlg(); paint(); watermark(); refreshKZ(); };
+
+// ---------------- 鍵盤 ----------------
+let typed = "", typedTimer = null;
+const box = $("tfbox"), boxText = $("tftext");
+const dlgOpen = () => ["dlg", "obdlg", "sesdlg"].some(id => $(id).style.display === "block");
+document.addEventListener("keydown", e => {
+  const tag = e.target.tagName;
+  if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA" || dlgOpen()) {
+    if (e.key === "Escape") { closeDlg(); closeOb(); if (S) closeSes(); }
+    return;
+  }
+  if (e.key === "ArrowRight") { e.preventDefault(); setPlaying(false); step(); return; }
+  if (e.key === " ") { e.preventDefault(); setPlaying(!playing); return; }
+  if (e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey) {
+    if (e.code === "KeyB") { e.preventDefault(); place(1); return; }
+    if (e.code === "KeyS") { e.preventDefault(); place(-1); return; }
+    if (e.code === "KeyC") { e.preventDefault(); manualClose(); return; }
+  }
+  if (e.altKey && e.code === "KeyH") { e.preventDefault(); setTool("hline"); return; }
+  if (e.altKey && e.shiftKey && e.code === "KeyR") { e.preventDefault(); setTool("rect"); return; }
+  if (e.altKey && e.shiftKey && e.code === "KeyL") { e.preventDefault(); setTool("long"); return; }
+  if (e.altKey && e.shiftKey && e.code === "KeyS") { e.preventDefault(); setTool("short"); return; }
+  if ((e.key === "Delete" || e.key === "Backspace") && selected) { e.preventDefault(); removeDrawing(selected); return; }
+  if (e.key === "Escape" && !typed && (tool !== "cursor" || selected || drag)) {
+    if (drag && drag.mode === "new") removeDrawing(drag.d);
+    drag = null; setTool("cursor"); select(null); return;
+  }
+  if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+  if (/^[0-9]$/.test(e.key) || (typed && /^[hHdDwW]$/.test(e.key)) || (!typed && /^[dDwW]$/.test(e.key))) {
+    typed += e.key.toUpperCase();
+  } else if (e.key === "Enter" && typed) {
+    let m = parseInt(typed) || 1;
+    if (typed.endsWith("H")) m *= 60;
+    if (typed.endsWith("D")) m = 1440;
+    if (typed.endsWith("W")) m = 10080;
+    typed = ""; box.style.display = "none";
+    if (LABEL[m]) setTf(m);
+    return;
+  } else if (e.key === "Escape") { typed = ""; box.style.display = "none"; return; }
+  else return;
+  boxText.textContent = typed; box.style.display = "flex";
+  clearTimeout(typedTimer); typedTimer = setTimeout(() => { typed = ""; box.style.display = "none"; }, 3000);
+});
+
+// ---------------- 啟動 ----------------
+const MOB = matchMedia("(max-width: 760px)").matches;
+function mobilePos() {
+  const m = $("mpos"); if (!m) return;
+  const p = S && S.pos;
+  if (!p) { m.innerHTML = '<span class="m">無持倉</span>'; return; }
+  const u = (S.px - p.entry) * p.dir * p.qty * PV[S.settings.inst];
+  m.innerHTML = `<span class="tag ${p.dir > 0 ? "l" : "s"}">${p.dir > 0 ? "多" : "空"} ${p.qty}</span> <span class="${u > 0 ? "pos" : u < 0 ? "neg" : ""}">${money(Math.round(u))}</span>`;
+}
+function toggleMore(v) { $("app").classList.toggle("mopen", v ?? !$("app").classList.contains("mopen")); }
+(function mobileSetup() {
+  $("tfsel").onchange = e => setTf(+e.target.value);
+  $("ttoggle").onclick = () => { $("app").classList.toggle("topen"); toggleMore(false); };
+  $("morebtn").onclick = e => { e.stopPropagation(); toggleMore(); };
+  document.addEventListener("pointerdown", e => { if (!e.target.closest("#more, #morebtn")) toggleMore(false); }, true);
+  $("mbuy").onclick = () => place(1); $("msell").onclick = () => place(-1); $("mclose").onclick = () => manualClose();
+  $("mkz").onclick = () => { toggleMore(false); openDlg(); }; $("mob").onclick = () => { toggleMore(false); openOb(); };
+  if (!MOB) return;
+  $("app").appendChild($("rbar"));                   // 播放列移到圖表外面（圖表下方）
+  const g = $("moregrid"), cap = t => { const d = document.createElement("div"); d.className = "cap"; d.textContent = t; return d; };
+  g.appendChild(cap("看過去的 K 線（紐約時間）"));
+  for (const id of ["goto", "gobtn", "latest"]) g.appendChild($(id));
+  g.appendChild(cap("快轉到（紐約時間）"));
+  for (const id of ["ffto", "ffbtn"]) g.appendChild($(id));
+  g.appendChild(cap("顯示"));
+  for (const id of ["unit", "magnet", "sessbtn"]) g.appendChild($(id));
+  $("next18").textContent = "⏩18:00"; $("nextkz").textContent = "⏩KZ";
+  for (const o of $("speed").options) o.textContent = o.value + "x";
+  for (const id of ["goto", "gobtn", "latest", "ffto", "ffbtn"]) $(id).addEventListener("click", () => { if (id.endsWith("btn") || id === "latest") toggleMore(false); });
+})();
+function togglePanel(v) { const a = $("app"); a.classList.toggle("popen", v ?? !a.classList.contains("popen")); }
+$("ptoggle").onclick = () => togglePanel();
+$("pclose").onclick = () => togglePanel(false);
+let STORE_TXT = "";
+async function NQ_init() {
+  window.NQ_STORE_MODE().then(m => { STORE_TXT = "（這支手機）";
+    });
+  INFO = await (await fetch("/api/info")).json();
+  if (false) {
+    const w = document.createElement("div");
+    w.textContent = "⚠ 背景還在跑舊版程式：請關掉所有黑色視窗，再重新雙擊 start.bat，然後按 F5";
+    w.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:20;background:#f23645;color:#fff;padding:10px 16px;font-size:14px;text-align:center";
+    document.body.appendChild(w);
+  }
+  if (!INFO.series["1"]) $("n_adj").querySelector('option[value="1"]').disabled = true;
+  for (const m of INFO.timeframes) {
+    const b = document.createElement("button");
+    b.textContent = LABEL[m]; b.dataset.tf = m;
+    b.onclick = () => setTf(m);
+    tfs.appendChild(b);
+    $("tfsel").add(new Option(LABEL[m], m));
+  }
+  const tab = store.get("tab", "order");
+  const tb = [...$("tabs").children].find(b => b.dataset.tab === tab); if (tb) tb.click();
+  paint();
+  const list = await (await fetch("/api/sessions")).json();
+  const id = list.last && list.items.some(x => x.id === list.last) ? list.last : list.items[0] && list.items[0].id;
+  if (id && await openSession(id)) toast(`已接續「${S.name}」：上次停在 ${fT(S.cur)}`, 4000);
+  else { showEmpty(); openSes(); }
+}
+window.NQ_DATA.whenReady().then(NQ_init);
+</script>
+
+<script>
+(function () {
+  const ov = document.getElementById("dataov"), msg = document.getElementById("dov_msg"), fi = document.getElementById("dov_file");
+  async function doImport(file) {
+    msg.textContent = "匯入中…";
+    try {
+      const n = await NQ_DATA.importFile(file, (k, N, y) => { msg.textContent = `匯入中… ${y} 年（${k}/${N}）`; });
+      msg.textContent = `完成：${n} 年的資料已存進手機`;
+      const m = await NQ_DATA.meta(); ov.classList.remove("on"); NQ_DATA.markReady(m);
+      return true;
+    } catch (e) { msg.textContent = "匯入失敗：" + e.message; return false; }
+  }
+  document.getElementById("dov_pick").onclick = () => fi.click();
+  fi.onchange = () => fi.files[0] && doImport(fi.files[0]);
+  NQ_DATA.check().then(ok => { if (!ok) ov.classList.add("on"); });
+  // 回測視窗裡的「K 線資料…」：重新匯入
+  document.getElementById("dx_btn").onclick = async () => {
+    const m = await NQ_DATA.meta();
+    msg.textContent = m ? `目前資料：${m.years[0].year}–${m.years[m.years.length - 1].year}（${new Date(m.imported).toLocaleDateString("zh-TW")} 匯入）。選新的檔案會覆蓋。` : "";
+    ov.classList.add("on");
+    document.getElementById("dov_pick").textContent = "選擇資料檔…（按旁邊空白處取消）";
+    ov.onclick = e => { if (e.target === ov && m) ov.classList.remove("on"); };
+  };
+  // 匯出／匯入回測（JSON）
+  document.getElementById("sx_out").onclick = async () => {
+    if (typeof flush === "function") await flush();
+    const all = NQ_BACKEND.local.all();
+    const blob = new Blob([JSON.stringify(all)], { type: "application/json" });
+    const name = `NQ回測_${new Date().toISOString().slice(0, 10)}.json`;
+    const file = new File([blob], name, { type: "application/json" });
+    try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: name }); return; } } catch (e) { if (e.name === "AbortError") return; }
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  };
+  const sf = document.getElementById("sx_file");
+  document.getElementById("sx_in").onclick = () => sf.click();
+  sf.onchange = async () => {
+    const f = sf.files[0]; if (!f) return; sf.value = "";
+    try {
+      const d = JSON.parse(await f.text()), all = NQ_BACKEND.local.all(); all.s = all.s || {};
+      let n = 0;
+      const put = x => { if (x && /^[A-Za-z0-9_-]{1,48}$/.test(x.id || "") && Array.isArray(x.trades)) { all.s[x.id] = x; n++; } };
+      if (d.s) Object.values(d.s).forEach(put); else if (Array.isArray(d)) d.forEach(put); else put(d);
+      if (!n) throw new Error("檔案裡沒有回測");
+      NQ_BACKEND.local.put(all); toast(`匯入了 ${n} 個回測`); if (typeof refreshSesList === "function") refreshSesList();
+    } catch (e) { toast("匯入失敗：" + e.message); }
+  };
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+})();
+</script>
+
+</body>
+</html>
