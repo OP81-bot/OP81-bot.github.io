@@ -345,6 +345,7 @@
       <div class="fr"><label>市價／停損滑價（tick）</label><input type="number" id="s_slip" min="0" step="1"></div>
       <div class="fr"><label>同一根 K 停損停利都碰到</label><select id="s_same"><option value="sl">算停損（保守）</option><option value="dir">依 K 棒方向推估</option></select></div>
       <div class="fr"><label><input type="checkbox" id="s_pause">成交或出場時自動暫停</label></div>
+      <div class="fr"><label title="按「下一根」時，新的一根 K 先只出現開盤價（可以用開盤價市價進場），再按一次才出整根。自動播放不受影響。"><input type="checkbox" id="s_peek">下一根先顯示開盤價，再按一次出整根</label></div>
       <div class="hint">成交判斷用 1 分鐘 K：掛單價被碰到就成交；停損、停利被碰到就出場，跳空開盤則用開盤價。</div>
       <div class="hint" style="margin-top:6px">快捷鍵：→ 下一根 · 空白鍵 播放／暫停 · Shift+B 買 · Shift+S 賣 · Shift+C 平倉</div>
     </div>
@@ -378,7 +379,7 @@
     <div class="hint" style="margin:8px 0 0">起點之後的 K 線會全部隱藏，按「下一根」或播放才會一根一根出現。</div>
     <div class="row"><button class="pri" id="n_ok">建立並開始</button></div>
     <h4>已存的回測（存在這支手機，下次打開會接著上次的位置）</h4>
-    <div class="row" style="flex-wrap:wrap"><button id="sx_out">匯出全部回測</button><button id="sx_in">匯入回測…</button><input type="file" id="sx_file" accept=".json,application/json" hidden><button id="dx_btn">K 線資料…</button></div><div class="hint">App 版本：pwa-2026-10-25b</div>
+    <div class="row" style="flex-wrap:wrap"><button id="sx_out">匯出全部回測</button><button id="sx_in">匯入回測…</button><input type="file" id="sx_file" accept=".json,application/json" hidden><button id="dx_btn">K 線資料…</button></div><div class="hint">App 版本：pwa-2026-11-07a</div>
     <table id="seslist"></table>
   </div>
 </div>
@@ -517,6 +518,9 @@ const contracts = [], cIndex = {};
 const yearCache = {};                                 // year → {t, o, h, l, c, k}
 async function loadYear(y) {
   if (yearCache[y]) return yearCache[y];
+  return (yearCache[y] = await decodeYear(y));
+}
+async function decodeYear(y) {                          // 解一年的資料（不放快取；找相似 KZ 建索引時用）
   const u8 = await window.NQ_DATA.get(y);
   if (!u8) throw new Error(`手機裡還沒有 ${y} 年的資料：請重新匯入資料檔`);
   const raw = await gunzip(u8);
@@ -534,7 +538,7 @@ async function loadYear(y) {
     const O = pc + dO[i]; o[i] = O * 0.25; h[i] = (O + dH[i]) * 0.25; l[i] = (O - dL[i]) * 0.25;
     const C = O + dC[i]; c[i] = C * 0.25; pc = C; k[i] = map[kk[i]];
   }
-  return (yearCache[y] = { t, o, h, l, c, k });
+  return { t, o, h, l, c, k };
 }
 
 // 目前載入的連續年份 [y0, y1]；換範圍時重組陣列並清掉所有快取
@@ -1064,11 +1068,11 @@ window.fetch = function (url, opts = {}) {
   if (path.startsWith("/api/session")) return run();
   const p = queue.then(run); queue = p.catch(() => {}); return p;
 };
-window.NQ_BACKEND = { ensureAround, loadYear, api, years: () => [Y0, Y1], local };
+window.NQ_BACKEND = { ensureAround, loadYear, decodeYear: y => yearCache[y] || decodeYear(y), api, years: () => [Y0, Y1], local };
 })();
 </script>
 <script>
-const PAGE_VERSION = "replay-2026-10-24a";
+const PAGE_VERSION = "replay-2026-11-07a";
 const LABEL = {1:"1m",2:"2m",3:"3m",5:"5m",10:"10m",15:"15m",30:"30m",45:"45m",60:"1H",120:"2H",240:"4H",1440:"1D",10080:"1W"};
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
@@ -1086,7 +1090,7 @@ let bars = [], kk = [], contracts = [], first = 0, last = 0, tail = true, loadin
 let INFO = null;
 let S = null;          // 目前的回測（整個存進 sessions/<id>.json）
 
-const SET_DEFAULT = { inst: "NQ", comm: 5, slip: 0, balance: 500000, qty: 1, otype: "mkt", unit: "tf", speed: 2, pauseOnFill: true, same: "sl" };
+const SET_DEFAULT = { inst: "NQ", comm: 5, slip: 0, balance: 500000, qty: 1, otype: "mkt", unit: "tf", speed: 2, pauseOnFill: true, same: "sl", peekOpen: true };
 
 // 時間工具（圖表時間 = 美東牆上時間當成 UTC 的秒數）
 const dt = t => new Date(t * 1000);
@@ -1850,6 +1854,13 @@ async function load(params = {}) {
     contracts = d.contracts; first = d.first; last = d.last; tail = d.tail;
     if (!params.around && !params.before && d.cur != null) { S.cur = d.cur; S.px = d.px; S.k = d.k_cur; }
     [bars, kk] = toRows(d);
+    if (S.peek) {                                              // 只出開盤價的那根：同週期就補回去，換了週期就退回上一根收盤（再按一次會重新出開盤價）
+      const pk = S.peek;
+      if (pk.tf === tf && pk.adj === adj && pk.sess === sessOnly) {
+        S.px = pk.px; S.k = pk.k;
+        if (tail && bars.length && bars[bars.length - 1].time < pk.bar.time) { bars.push({ ...pk.bar }); kk.push(pk.kb); }
+      } else { S.px = pk.px0; S.k = pk.k0; delete S.peek; }
+    }
     kzPrim.set({ boxes: [], lines: [], labels: [] });
     candles.setData(bars);
     if (params.around) {
@@ -1954,20 +1965,56 @@ function kzLevels(now) {
   });
   return out;
 }
+// 「現在」的時間：只出開盤價的時候（S.peek）是新那根第一分鐘的開盤，游標 S.cur 還停在上一根
+const nowT = () => S.peek ? S.peek.t : S.cur;
+const m1Slice = (m, a, b) => ({ t: m.t.slice(a, b), o: m.o.slice(a, b), h: m.h.slice(a, b), l: m.l.slice(a, b), c: m.c.slice(a, b), k: m.k.slice(a, b) });
+// 下一根先只出開盤價：新那根 = O=H=L=C=開盤；之前的 1 分 K（只看時段時的時段外）照樣判斷成交，再用「只有開盤價」的那一分鐘判斷跳空成交
+function doPeek(d, j) {
+  const m = d.m1, tb = d.bars.t[j];
+  const a = m.t.findIndex(t => t >= tb);
+  if (a < 0) return null;
+  const prevPx = S.px, o = m.o[a], ob = d.bars.o[j];
+  for (let i = 0; i < j; i++) {                               // 上一根被補完（一般不會發生）
+    const b = { time: d.bars.t[i], open: d.bars.o[i], high: d.bars.h[i], low: d.bars.l[i], close: d.bars.c[i] };
+    const n = bars.length;
+    if (b.time === bars[n - 1].time) { bars[n - 1] = b; kk[n - 1] = d.bars.k[i]; candles.update(b); }
+    else if (b.time > bars[n - 1].time) { bars.push(b); kk.push(d.bars.k[i]); candles.update(b); }
+  }
+  let paused = false;
+  if (a > 0) paused = simulate(m1Slice(m, 0, a), prevPx);
+  paused = simulate({ t: [m.t[a]], o: [o], h: [o], l: [o], c: [o], k: [m.k[a]] }, a > 0 ? m.c[a - 1] : prevPx) || paused;
+  const bar = { time: tb, open: ob, high: ob, low: ob, close: ob };
+  S.peek = { t: m.t[a], k: m.k[a], px: o, px0: prevPx, k0: S.k, tf, adj, sess: sessOnly, bar, kb: d.bars.k[j] };
+  S.px = o; S.k = m.k[a];
+  bars.push({ ...bar }); kk.push(d.bars.k[j]); candles.update({ ...bar });
+  afterData(); legend();
+  renderLive(); syncLines(); watermark(); saveSession(4000);
+  return true;
+}
 async function step(opts = {}) {
   if (!S || stepping) return false;
   stepping = true;
   try {
-    const need = !!(S.pos || S.order);
+    const wantPeek = !!opts.manual && !S.peek && S.settings.peekOpen !== false && !opts.to && !!tail && bars.length > 0;
+    const need = !!(S.pos || S.order) || wantPeek;
     const q = new URLSearchParams({ tf, adj, sess: sessOnly ? 1 : 0, cur: S.cur, m1: need ? 1 : 0, unit: S.settings.unit });
     if (opts.to) q.set("to", opts.to);
     const d = await (await fetch("/api/step?" + q)).json();
     if (d.error) { toast(d.error === "too far" ? "有持倉或掛單時一次最多快轉約 4 個月" : "錯誤：" + d.error); return false; }
     if (d.cur === S.cur || d.cur == null) { if (d.end) toast("已經到資料的最後一根"); return false; }
+    if (wantPeek && d.bars && d.m1) {
+      const lastT = bars[bars.length - 1].time, j = d.bars.t.findIndex(t => t > lastT);
+      if (j >= 0 && doPeek(d, j)) return true;
+    }
     const prevPx = S.px;
+    let m1 = d.m1;
+    if (S.peek) {                                              // 開盤價那一步已經判斷過的 1 分 K 不再重複
+      if (m1) { const a = m1.t.findIndex(t => t >= S.peek.t); m1 = a < 0 ? null : m1Slice(m1, a, m1.t.length); }
+      delete S.peek;
+    }
     S.cur = d.cur; S.px = d.px; S.k = d.k_cur;
     let paused = false;
-    if (d.m1) paused = simulate(d.m1, prevPx);
+    if (m1) paused = simulate(m1, prevPx);
     let kzHit = null;
     if (d.bars && tail && bars.length) {
       const lv = playing ? kzLevels(Math.max(bars[bars.length - 1].time, ...d.bars.t)) : [];
@@ -2007,7 +2054,7 @@ async function playLoop() {
   }
 }
 $("playbtn").onclick = () => setPlaying(!playing);
-$("stepbtn").onclick = () => { setPlaying(false); step(); };
+$("stepbtn").onclick = () => { setPlaying(false); step({ manual: true }); };
 $("speed").onchange = e => { if (S) { S.settings.speed = +e.target.value; saveSession(); } };
 $("unit").onchange = e => { if (S) { S.settings.unit = e.target.value; saveSession(); } };
 $("o_price").addEventListener("input", () => renderLive());
@@ -2068,12 +2115,12 @@ function place(dir) {
     if (!(price > 0)) { toast("請輸入掛單價格"); return; }
     if (price !== S.px) {
       if (S.order) toast("原本的掛單已取消，換成新的");
-      S.order = { dir, qty, price, kind: orderKind(dir, price), sl: null, tp: null, t: S.cur };
+      S.order = { dir, qty, price, kind: orderKind(dir, price), sl: null, tp: null, t: nowT() };
       toast(`${dir > 0 ? "買進" : "賣出"}${S.order.kind === "limit" ? "限價" : "停損單"} ${qty} 口 @ ${fmt(price)}`);
       afterTrade(); return;
     }
   }
-  const r = execute(dir, qty, rnd(S.px + dir * slipPx()), S.cur, S.k, "市價");
+  const r = execute(dir, qty, rnd(S.px + dir * slipPx()), nowT(), S.k, "市價");
   for (const m of r.msgs) toast(m);
   afterTrade(r.closed.length > 0);
 }
@@ -2093,7 +2140,7 @@ function closePos(px, t, reason, qty) {
 }
 function manualClose() {
   if (!S || !S.pos) return;
-  const tr = closePos(rnd(S.px - S.pos.dir * slipPx()), S.cur, "手動");
+  const tr = closePos(rnd(S.px - S.pos.dir * slipPx()), nowT(), "手動");
   toast(`平倉 ${money(Math.round(tr.pnl))}`);
   afterTrade(true);
 }
@@ -2108,7 +2155,7 @@ function simulate(m, prevPx) {
       const tr = closePos(prevC, prevT ?? t, "換月"); ev = true; toast(`換月平倉 ${money(Math.round(tr.pnl))}`);
     }
     const od = S.order;
-    if (od) {
+    if (od && !(od.t > t)) {
       const buy = od.dir > 0;
       let fill = null;
       if (od.kind === "limit") { if (buy ? l <= od.price : h >= od.price) fill = buy ? Math.min(o, od.price) : Math.max(o, od.price); }
@@ -2129,7 +2176,7 @@ function simulate(m, prevPx) {
       }
     }
     const p = S.pos;
-    if (p) {
+    if (p && !(p.t_in > t)) {
       const d = p.dir;
       const gapSL = p.sl != null && (d > 0 ? o <= p.sl : o >= p.sl) && !fillBar;
       const gapTP = p.tp != null && (d > 0 ? o >= p.tp : o <= p.tp) && !fillBar;
@@ -2185,7 +2232,7 @@ function bindSetting(id, key, conv = v => v, after) {
 bindSetting("o_qty", "qty", v => Math.max(1, Math.round(+v || 1)));
 bindSetting("s_inst", "inst", v => v, () => { syncLines(); renderTrades(); });
 bindSetting("s_comm", "comm", v => Math.max(0, +v || 0)); bindSetting("s_slip", "slip", v => Math.max(0, Math.round(+v || 0)));
-bindSetting("s_same", "same"); bindSetting("s_pause", "pauseOnFill");
+bindSetting("s_same", "same"); bindSetting("s_pause", "pauseOnFill"); bindSetting("s_peek", "peekOpen");
 function setOtype(v) { if (!S) return; S.settings.otype = v; if (v === "lmt" && S.px != null) $("o_price").value = S.px; renderLive(); saveSession(); }
 $("ot_mkt").onclick = () => setOtype("mkt");
 $("ot_lmt").onclick = () => setOtype("lmt");
@@ -2198,7 +2245,7 @@ for (const b of $("tabs").children) b.onclick = () => {
 function fillSettings() {
   const st = S.settings;
   $("o_qty").value = st.qty;
-  $("s_inst").value = st.inst; $("s_comm").value = st.comm; $("s_slip").value = st.slip; $("s_same").value = st.same; $("s_pause").checked = st.pauseOnFill;
+  $("s_inst").value = st.inst; $("s_comm").value = st.comm; $("s_slip").value = st.slip; $("s_same").value = st.same; $("s_pause").checked = st.pauseOnFill; $("s_peek").checked = st.peekOpen !== false;
   $("speed").value = String(st.speed); $("unit").value = st.unit;
 }
 function balance() { return S.settings.balance + S.trades.reduce((s, x) => s + x.pnl, 0); }
@@ -2207,8 +2254,9 @@ function renderLive() {
   if (!S) return;
   const st = S.settings, pv = PV[st.inst];
   $("curpx").textContent = fmt(S.px);
-  $("curtime").textContent = S.cur ? `${fT(S.cur)}（${wd(S.cur)}）` : "";
-  $("clock").textContent = S.cur ? `${fT(S.cur)} 週${wd(S.cur)}` : "—";
+  const nt = nowT(), pk = S.peek ? "（開盤）" : "";
+  $("curtime").textContent = nt ? `${fT(nt)}（${wd(nt)}）${pk}` : "";
+  $("clock").textContent = nt ? `${fT(nt)} 週${wd(nt)}${pk}` : "—";
   $("ot_mkt").classList.toggle("on", st.otype !== "lmt"); $("ot_lmt").classList.toggle("on", st.otype === "lmt");
   $("lmtrow").style.display = st.otype === "lmt" ? "flex" : "none";
   const ref = st.otype === "lmt" && +$("o_price").value > 0 ? rnd(+$("o_price").value) : null;
@@ -2225,7 +2273,7 @@ function renderLive() {
       `<span>${p.adds ? "均價" : "進場"}</span><span>${fmt(p.entry)} · ${fTs(p.t_in)}</span>` +
       `<span>RR</span><span>${p.sl != null && p.tp != null ? rrText(p.entry, p.sl, p.tp).replace(" · RR ", "") : "—"}${p.sl != null ? ` · 風險 ${money(Math.round(Math.abs(p.entry - p.sl) * pv * p.qty), false)}` : ""}</span>` +
       `<span>浮動</span><span class="${cls(pts)}">${pts >= 0 ? "+" : ""}${pts.toFixed(2)} 點${risk ? ` · ${(pts / risk).toFixed(2)}R` : ""}</span>` +
-      `<span>持有</span><span>${Math.round((S.cur - p.t_in) / 60)} 分鐘</span>`;
+      `<span>持有</span><span>${Math.max(0, Math.round((nowT() - p.t_in) / 60))} 分鐘</span>`;
     if (document.activeElement !== $("p_sl")) $("p_sl").value = p.sl ?? "";
     if (document.activeElement !== $("p_tp")) $("p_tp").value = p.tp ?? "";
   }
@@ -2386,6 +2434,7 @@ async function openSession(id) {
   if (!r.ok) { toast("找不到這個回測"); return false; }
   const d = await r.json();
   S = d;
+  delete S.peek;                                               // 只出開盤價的狀態不接續（重新開啟後再按一次會重新出開盤價）
   S.settings = Object.assign(clone(SET_DEFAULT), S.settings || {});
   if (S.order && S.order.slOff !== undefined) {         // 舊版存檔：停損停利是距離 → 換成價格
     const o = S.order;
@@ -2611,7 +2660,7 @@ document.addEventListener("keydown", e => {
     if (e.key === "Escape") { closeDlg(); closeOb(); if (S) closeSes(); }
     return;
   }
-  if (e.key === "ArrowRight") { e.preventDefault(); setPlaying(false); step(); return; }
+  if (e.key === "ArrowRight") { e.preventDefault(); setPlaying(false); step({ manual: true }); return; }
   if (e.key === " ") { e.preventDefault(); setPlaying(!playing); return; }
   if (e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey) {
     if (e.code === "KeyB") { e.preventDefault(); place(1); return; }
