@@ -379,7 +379,7 @@
     <div class="hint" style="margin:8px 0 0">起點之後的 K 線會全部隱藏，按「下一根」或播放才會一根一根出現。</div>
     <div class="row"><button class="pri" id="n_ok">建立並開始</button></div>
     <h4>已存的回測（存在這支手機，下次打開會接著上次的位置）</h4>
-    <div class="row" style="flex-wrap:wrap"><button id="sx_out">匯出全部回測</button><button id="sx_in">匯入回測…</button><input type="file" id="sx_file" accept=".json,application/json" hidden><button id="dx_btn">K 線資料…</button></div><div class="hint">App 版本：pwa-2026-11-07a</div>
+    <div class="row" style="flex-wrap:wrap"><button id="sx_out">匯出全部回測</button><button id="sx_in">匯入回測…</button><input type="file" id="sx_file" accept=".json,application/json" hidden><button id="dx_btn">K 線資料…</button></div><div class="hint">App 版本：pwa-2026-11-08a</div>
     <table id="seslist"></table>
   </div>
 </div>
@@ -1072,7 +1072,7 @@ window.NQ_BACKEND = { ensureAround, loadYear, decodeYear: y => yearCache[y] || d
 })();
 </script>
 <script>
-const PAGE_VERSION = "replay-2026-11-07a";
+const PAGE_VERSION = "replay-2026-11-08a";
 const LABEL = {1:"1m",2:"2m",3:"3m",5:"5m",10:"10m",15:"15m",30:"30m",45:"45m",60:"1H",120:"2H",240:"4H",1440:"1D",10080:"1W"};
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
@@ -1132,7 +1132,11 @@ function xOf(t) {   // 時間 → 圖表 x 座標
     while (lo < hi) { const mid = (lo + hi) >> 1; if (bars[mid].time < t) lo = mid + 1; else hi = mid; }
     i = bars[lo].time === t ? lo : lo - 1;
   }
-  return chart.timeScale().logicalToCoordinate(i);
+  // 圖表庫的 logicalToCoordinate 只接受整數（小數會回傳 0）→ 用前後兩根內插
+  const ts = chart.timeScale(), f = Math.floor(i), x0 = ts.logicalToCoordinate(f);
+  if (x0 === null || i === f) return x0;
+  const x1 = ts.logicalToCoordinate(f + 1);
+  return x1 === null ? x0 : x0 + (x1 - x0) * (i - f);
 }
 function barTimeAt(t) {
   if (!bars.length || t < bars[0].time) return null;
